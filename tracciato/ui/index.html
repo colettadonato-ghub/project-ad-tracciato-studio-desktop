@@ -1,0 +1,337 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<title>Tracciato — AD Studio Tecnico</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="fonts.css">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="app">
+
+  <aside class="sidebar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">A<i></i>D</span>
+      <span class="brand-name">STUDIO TECNICO</span>
+    </div>
+    <div class="app-title">
+      <strong>Tracciato</strong>
+      <span>NUVOLA → ELABORATI · <span id="ver">v0.2.0</span></span>
+    </div>
+    <nav class="nav" aria-label="Sezioni">
+      <button type="button" data-view="elab" aria-current="page">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M4 4h16v16H4zM4 12h7M15 12h5M12 4v16"/></svg>Elaborazione</button>
+      <button type="button" data-view="history">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M3 7h7l2 2h9v11H3z"/></svg>Storico</button>
+      <button type="button" data-view="logs">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M6 3h9l4 4v14H6zM14 3v5h5M9 12h7M9 16h7"/></svg>Log</button>
+    </nav>
+    <div class="sidebar-foot">
+      <span>CARTELLA DATI</span>
+      <span id="dataDir">—</span>
+      <button type="button" class="btn small ghost-dark" id="btnLogOpen2">Apri cartella log</button>
+    </div>
+  </aside>
+
+  <!-- =============================================================== ELABORAZIONE -->
+  <main class="main" id="view-elab">
+    <nav class="crumbs" aria-label="Percorso"><span>Tracciato</span><span aria-hidden="true">/</span><span>Elaborazione</span></nav>
+    <div class="head">
+      <div>
+        <h1 id="title">Nuovo rilievo</h1>
+        <div class="meta" id="fileMeta">Scegli una nuvola di punti LAS, LAZ o E57</div>
+      </div>
+      <div class="actions">
+        <button type="button" class="btn" id="btnPick">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M3 7h7l2 2h9v11H3z"/></svg>Scegli nuvola…</button>
+        <button type="button" class="btn primary" id="btnRun" disabled>Genera elaborati</button>
+        <button type="button" class="btn danger" id="btnCancel" hidden>Annulla</button>
+      </div>
+    </div>
+
+    <ol class="stepper" id="stepper" aria-label="Passaggi">
+      <li><button type="button" data-step="1"><b>1</b><span>Nuvola e anteprima</span></button></li>
+      <li><button type="button" data-step="2" disabled><b>2</b><span>Tipo di rilievo</span></button></li>
+      <li><button type="button" data-step="3" disabled><b>3</b><span>Parametri</span></button></li>
+      <li><button type="button" data-step="4" disabled><b>4</b><span>Elaborati PNG</span></button></li>
+    </ol>
+
+    <div class="work">
+      <!-- ============================================ pannello sinistro: contenuto del passaggio -->
+      <section class="panel side-left" aria-label="Passaggio corrente">
+
+        <!-- 1 · nuvola -->
+        <div class="step-pane" data-pane="1">
+          <div class="panel-head"><span class="label">1 · Nuvola di punti</span></div>
+          <div class="panel-body">
+            <div class="file-box" id="fileBox">
+              <span class="fname" id="fName">Nessun file</span>
+              <span class="fmeta" id="fInfo">LAS · LAZ · E57</span>
+            </div>
+            <div class="field" id="prevProgress" hidden>
+              <div class="field-row"><span class="flabel">Anteprima in corso</span><span class="value" id="prevPct">0%</span></div>
+              <div class="bar"><i id="prevBar"></i></div>
+              <span class="hint">Lettura completa del file a blocchi: per nuvole molto grandi può richiedere qualche minuto.</span>
+            </div>
+            <dl class="facts" id="prevFacts" hidden>
+              <div><dt>Punti nel file</dt><dd id="fPts">—</dd></div>
+              <div><dt>In anteprima</dt><dd id="fPrev">—</dd></div>
+              <div><dt>Ingombro L × P</dt><dd id="fSize">—</dd></div>
+              <div><dt>Dislivello</dt><dd id="fH">—</dd></div>
+              <div><dt>Rotazione muri</dt><dd id="fRot">—</dd></div>
+              <div><dt>Superfici orizz.</dt><dd id="fPeaks">—</dd></div>
+            </dl>
+            <button type="button" class="btn" id="btnPick2">Scegli nuvola…</button>
+            <button type="button" class="btn link small" id="btnRepreview" hidden>Rigenera anteprima</button>
+            <button type="button" class="btn primary block" id="toStep2" disabled>Avanti: tipo di rilievo</button>
+          </div>
+        </div>
+
+        <!-- 2 · tipo -->
+        <div class="step-pane" data-pane="2" hidden>
+          <div class="panel-head"><span class="label">2 · Cosa rappresenta la nuvola?</span></div>
+          <div class="panel-body">
+            <div class="choices" role="radiogroup" aria-label="Tipo di rilievo" id="modeChoices">
+              <button type="button" role="radio" class="choice" data-mode="interno" aria-checked="false">
+                <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M6 6h36v36H6zM6 22h16M28 22h14M22 6v10M22 28v14"/><path d="M28 22a6 6 0 0 0-6-6" stroke-dasharray="2 2"/></svg>
+                <span class="c-title">Interno appartamento / ufficio <em class="tag" hidden>Proposto</em></span>
+                <span class="c-desc">Pianta di un piano: muri, porte, finestre, vani e superfici. DXF a layer, PDF in scala e PNG. Sezioni verticali facoltative.</span>
+              </button>
+              <button type="button" role="radio" class="choice" data-mode="esterno" aria-checked="false">
+                <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M8 40V18l16-10 16 10v22M4 40h40"/><path d="M14 24h6v6h-6zM28 24h6v6h-6zM21 40v-8h6v8"/></svg>
+                <span class="c-title">Esterno edificio <em class="tag" hidden>Proposto</em></span>
+                <span class="c-desc">Sagoma planimetrica e perimetro con superficie coperta, prospetti delle facciate, sezioni. PNG + perimetro in DXF.</span>
+              </button>
+              <button type="button" role="radio" class="choice" data-mode="multipiano" aria-checked="false">
+                <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M6 6h36v36H6zM6 24h36"/><path d="M28 42v-4h4v-4h4v-4h4" /><path d="M10 16h10" stroke-dasharray="2 2"/></svg>
+                <span class="c-title">Interno multi-piano <em class="tag" hidden>Proposto</em></span>
+                <span class="c-desc">Scale, soppalchi, altezze oltre 4 m: una pianta per livello alla quota scelta e sezioni verticali con le quote dei livelli.</span>
+              </button>
+            </div>
+            <button type="button" class="btn primary block" id="toStep3" disabled>Avanti: parametri</button>
+          </div>
+        </div>
+
+        <!-- 3 · parametri -->
+        <div class="step-pane" data-pane="3" hidden>
+          <div class="panel-head"><span class="label" id="paramsTitle">3 · Parametri</span>
+            <button type="button" class="btn link small" id="btnChangeMode">Cambia tipo</button></div>
+          <div class="panel-body scroll">
+
+            <!-- piano 0: comune a tutti -->
+            <div class="field" data-for="esterno multipiano">
+              <div class="field-row"><label for="pZ0">Piano 0 · quota assoluta</label><span class="value" id="vZ0rel"></span></div>
+              <input id="pZ0" class="input mono" type="number" step="0.01">
+              <div class="chips" id="z0Chips" aria-label="Superfici orizzontali rilevate"></div>
+              <span class="hint" id="z0Hint">Riferimento ±0,00 di tutte le quote. Le pastiglie sono le superfici orizzontali trovate (pavimenti, solai, terreno): clic per usarne una.</span>
+            </div>
+
+            <!-- INTERNO -->
+            <div class="group" data-for="interno">
+              <div class="field">
+                <div class="field-row"><label for="pCut">Altezza di sezione dal pavimento</label><span class="value" id="vCut">1,10 m</span></div>
+                <input id="pCut" type="range" min="0.5" max="2.5" step="0.05" value="1.1">
+                <span class="hint">Quota a cui viene “tagliata” la pianta (evidenziata in blu nella nuvola). Il pavimento viene rilevato automaticamente.</span>
+              </div>
+              <label class="check"><input type="checkbox" id="pAlign" checked>Forza ortogonalità dei muri</label>
+              <label class="check"><input type="checkbox" id="pSection" checked>Punti della sezione nel DXF</label>
+              <details class="adv">
+                <summary>AVANZATE PIANTA</summary>
+                <div class="panel-body">
+                  <div class="two">
+                    <div class="field"><label for="pWall">Muro max (m)</label><input id="pWall" class="input mono" type="number" step="0.05" min="0.2" max="1.2" value="0.55"></div>
+                    <div class="field"><label for="pRoom">Vano min (m²)</label><input id="pRoom" class="input mono" type="number" step="0.5" min="0.2" value="1.0"></div>
+                  </div>
+                  <div class="field"><label for="pBand">Fascia sotto soffitto (m)</label><input id="pBand" class="input mono" type="number" step="0.05" min="0.1" max="1" value="0.35">
+                    <span class="hint">Riducila con controsoffitti, travi o soffitti inclinati.</span></div>
+                  <div class="two">
+                    <div class="field"><label for="pFloor">Z pavimento</label><input id="pFloor" class="input mono" type="number" step="0.01" placeholder="auto"></div>
+                    <div class="field"><label for="pCeil">Z soffitto</label><input id="pCeil" class="input mono" type="number" step="0.01" placeholder="auto"></div>
+                  </div>
+                </div>
+              </details>
+            </div>
+
+            <!-- ESTERNO -->
+            <div class="group" data-for="esterno">
+              <div class="field">
+                <div class="field-row"><label for="pCutH">Quota della sezione del perimetro</label><span class="value" id="vCutH">1,00 m</span></div>
+                <input id="pCutH" type="range" min="0.3" max="4" step="0.05" value="1.0">
+                <span class="hint">Altezza dal piano 0 a cui si legge il filo delle facciate (sopra zoccoli e marciapiedi, sotto davanzali e sporti).</span>
+              </div>
+              <div class="field">
+                <label for="pCutT">Spessore della fascia (m)</label>
+                <input id="pCutT" class="input mono" type="number" step="0.05" min="0.05" max="2" value="0.30">
+              </div>
+            </div>
+
+            <!-- MULTI-PIANO -->
+            <div class="group" data-for="multipiano">
+              <div class="field">
+                <div class="field-row"><span class="flabel">Livelli</span>
+                  <span><button type="button" class="btn link small" id="btnLevelsAuto">Riproponi</button>
+                  <button type="button" class="btn small" id="btnLevelAdd">+ Livello</button></span></div>
+                <div class="levels" id="levels"></div>
+                <span class="hint">Quota del pavimento dal piano 0 e altezza del taglio dal pavimento del livello. Per un soppalco usa un taglio più basso (es. 0,60).</span>
+              </div>
+            </div>
+
+            <!-- LINEE: prospetti (esterno) e sezioni (tutti) -->
+            <div class="field" data-for="esterno">
+              <div class="field-row"><span class="flabel">Prospetti</span>
+                <span><button type="button" class="btn link small" id="btnFrontsAuto">Riproponi i 4 fronti</button>
+                <button type="button" class="btn small" data-draw="prospetto">Disegna</button></span></div>
+              <div class="lines" id="linesProspetto"></div>
+              <span class="hint">Linea di vista e profondità: entra nel prospetto tutto ciò che sta entro la profondità, verso la freccia.</span>
+            </div>
+            <div class="field" data-for="esterno multipiano interno">
+              <div class="field-row"><span class="flabel">Sezioni verticali</span>
+                <button type="button" class="btn small" data-draw="sezione">Disegna</button></div>
+              <div class="lines" id="linesSezione"></div>
+              <span class="hint">Traccia la linea con due clic sulla nuvola (Maiusc = parallela ai muri, Esc annulla). Spessore = fascia tagliata, in nero; “oltre” = quanto si vede dietro, in grigio.</span>
+            </div>
+
+            <!-- comuni -->
+            <div class="field">
+              <span class="flabel">Scala delle tavole</span>
+              <div class="seg four" role="group" aria-label="Scala" id="pScale">
+                <button type="button" data-v="50" aria-pressed="false">1:50</button>
+                <button type="button" data-v="100" aria-pressed="true">1:100</button>
+                <button type="button" data-v="200" aria-pressed="false">1:200</button>
+                <button type="button" data-v="500" aria-pressed="false">1:500</button>
+              </div>
+              <span class="hint">Il formato del foglio (A3…A0) viene scelto in automatico.</span>
+            </div>
+            <div class="field">
+              <label for="pDetail">Dettaglio</label>
+              <select id="pDetail" class="input">
+                <option value="alta">Alto · 1 cm</option>
+                <option value="media">Medio · 2 cm (consigliato)</option>
+                <option value="bozza">Bozza · 3 cm, più veloce</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="pTitle">Titolo delle tavole</label>
+              <input id="pTitle" class="input" value="RILIEVO">
+            </div>
+            <label class="check" data-for="esterno multipiano interno"><input type="checkbox" id="pFill" checked>Campisci gli elementi tagliati (muri, solai)</label>
+            <details class="adv">
+              <summary>CARTELLA DI DESTINAZIONE</summary>
+              <div class="panel-body">
+                <div class="file-box"><span class="fmeta" id="outDir">accanto alla nuvola, in “Tracciato”</span></div>
+                <div style="display:flex;gap:8px">
+                  <button type="button" class="btn small" id="btnOut">Cambia…</button>
+                  <button type="button" class="btn small link" id="btnOutReset">Predefinita</button>
+                </div>
+              </div>
+            </details>
+          </div>
+        </div>
+
+        <!-- 4 · elaborati -->
+        <div class="step-pane" data-pane="4" hidden>
+          <div class="panel-head"><span class="label">4 · Elaborati</span><span class="pill idle" id="resStatus">—</span></div>
+          <div class="panel-body scroll">
+            <div class="stats small" id="resStats" hidden></div>
+            <ul class="outputs" id="outputs"></ul>
+            <div class="result-actions col">
+              <button type="button" class="btn" id="btnOpenDir">Apri cartella</button>
+              <button type="button" class="btn link" id="btnOpenLog">Log elaborazione</button>
+              <button type="button" class="btn link" id="btnBackParams">Modifica parametri e rigenera</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================ centro: viewer / tavole -->
+      <section class="panel" aria-label="Anteprima">
+        <div class="panel-head">
+          <div class="tabs" role="tablist">
+            <button type="button" role="tab" aria-selected="true" data-tab="cloud">Nuvola</button>
+            <button type="button" role="tab" aria-selected="false" data-tab="sheets" disabled>Tavole</button>
+          </div>
+          <div class="toolbar" id="viewTools">
+            <div class="seg mini" role="group" aria-label="Vista" id="vMode">
+              <button type="button" data-v="3d" aria-pressed="true">3D</button>
+              <button type="button" data-v="top" aria-pressed="false">Pianta</button>
+              <button type="button" data-v="side" aria-pressed="false">Laterale</button>
+            </div>
+            <select class="input mini" id="vColor" aria-label="Colore dei punti">
+              <option value="0">Quota · grigi</option>
+              <option value="1">Quota · colori</option>
+              <option value="2">Uniforme</option>
+            </select>
+            <input type="range" id="vSize" min="1" max="5" step="0.5" value="2" aria-label="Dimensione punti" title="Dimensione punti">
+            <button type="button" class="btn small" id="vFit" title="Inquadra tutto">Inquadra</button>
+          </div>
+          <span class="pill idle" id="status">Pronto</span>
+        </div>
+        <div class="viewer" id="viewerBox">
+          <canvas id="gl"></canvas>
+          <canvas id="ov"></canvas>
+          <div class="empty" id="empty">
+            <svg viewBox="0 0 72 72" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+              <path d="M8 8h56v56H8z" stroke-dasharray="3 3"/><path d="M8 36h22M40 36h24M36 8v20M36 40v24"/>
+              <g fill="currentColor" stroke="none"><circle cx="18" cy="20" r="1.2"/><circle cx="24" cy="17" r="1.2"/><circle cx="50" cy="22" r="1.2"/><circle cx="54" cy="50" r="1.2"/><circle cx="20" cy="52" r="1.2"/><circle cx="46" cy="46" r="1.2"/></g>
+            </svg>
+            <h2>Nessuna nuvola aperta</h2>
+            <p>Scegli il file del rilievo (.las, .laz, .e57): ne vedrai un'anteprima 3D, poi indicherai cosa rappresenta.</p>
+            <button type="button" class="btn" id="btnPick3">Scegli nuvola…</button>
+          </div>
+          <div class="running-overlay" id="running" hidden>
+            <div class="label" id="runningLabel">ELABORAZIONE IN CORSO</div>
+            <div class="scan"></div>
+          </div>
+          <div class="vhint" id="vHint">Trascina per ruotare · tasto destro o Maiusc per spostare · rotella per lo zoom</div>
+        </div>
+        <div class="sheets" id="sheetsBox" hidden>
+          <img id="sheetImg" alt="Tavola selezionata">
+        </div>
+      </section>
+
+      <!-- ============================================ destra: pipeline + log -->
+      <section class="panel side-right" aria-label="Avanzamento">
+        <div class="panel-head"><span class="label">Pipeline</span><span class="t mono muted" id="total"></span></div>
+        <ol class="steps" id="steps"><li class="muted" style="font-size:13px">Le fasi compaiono all'avvio dell'elaborazione.</li></ol>
+        <div class="panel-head" style="border-top:1px solid var(--linea)"><span class="label">Log</span></div>
+        <pre class="logbox" id="log" aria-live="polite"></pre>
+      </section>
+    </div>
+  </main>
+
+  <!-- =============================================================== STORICO -->
+  <main class="main" id="view-history" hidden>
+    <nav class="crumbs" aria-label="Percorso"><span>Tracciato</span><span aria-hidden="true">/</span><span>Storico</span></nav>
+    <div class="head">
+      <div><h1>Storico elaborazioni</h1><div class="meta">Le ultime 100 elaborazioni su questo PC</div></div>
+    </div>
+    <div class="panel" style="overflow:auto">
+      <table class="table">
+        <thead><tr><th>Data</th><th>Nuvola</th><th>Tipo</th><th>Stato</th><th>Risultato</th><th style="text-align:right">Azioni</th></tr></thead>
+        <tbody id="historyBody"></tbody>
+      </table>
+    </div>
+  </main>
+
+  <!-- =============================================================== LOG -->
+  <main class="main" id="view-logs" hidden>
+    <nav class="crumbs" aria-label="Percorso"><span>Tracciato</span><span aria-hidden="true">/</span><span>Log</span></nav>
+    <div class="head">
+      <div><h1>Log applicativo</h1><div class="meta" id="logPath">—</div></div>
+      <div class="actions">
+        <button type="button" class="btn" id="btnLogRefresh">Aggiorna</button>
+        <button type="button" class="btn primary" id="btnLogOpen">Apri cartella log</button>
+      </div>
+    </div>
+    <div class="panel" style="flex:1;min-height:0">
+      <pre class="logbox full" id="appLog"></pre>
+    </div>
+  </main>
+</div>
+
+<div class="toast" id="toast" role="alert" hidden><span id="toastMsg"></span><button type="button" aria-label="Chiudi" id="toastClose">×</button></div>
+<script src="viewer.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
