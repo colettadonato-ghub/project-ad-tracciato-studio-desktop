@@ -101,8 +101,12 @@ def sheet(path_png, img, extent, scale, title, subtitle, info, draw=None, margin
     ax.set_aspect("equal")
     ax.axis("off")
     cmap = "gray" if img.ndim == 2 else None
+    # raster più grossolano dei pixel della tavola: interpolazione di Lanczos sui dati (bordi nitidi e lisci,
+    # niente "gradini"); più fitto: riduzione con antialiasing
+    smooth = f < 1.0
     ax.imshow(img, extent=(x0, x1, y0, y1), origin="lower", cmap=cmap, vmin=0, vmax=1,
-              interpolation="antialiased", interpolation_stage="rgba", zorder=1)
+              interpolation="lanczos" if smooth else "antialiased",
+              interpolation_stage="data" if smooth else "rgba", zorder=1)
     if draw:
         draw(ax)
     _grow(ax, ann)

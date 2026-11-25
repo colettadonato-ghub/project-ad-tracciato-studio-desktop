@@ -299,7 +299,7 @@
     const saved = S.sceneSaved[m] || {};
     if (saved.title) $("pTitle").value = saved.title;
     else $("pTitle").value = m === "interno" ? "RILIEVO — PIANTA" : m === "esterno" ? "RILIEVO ESTERNO" : "RILIEVO";
-    if (saved.detail) $("pDetail").value = saved.detail; else $("pDetail").value = m === "interno" ? "alta" : "media";
+    if (saved.detail) $("pDetail").value = saved.detail; else $("pDetail").value = "alta";
     if (saved.scale) setScale(saved.scale);
     if (saved.cut_h != null) { $("pCutH").value = saved.cut_h; }
     if (saved.cut_t != null) { $("pCutT").value = saved.cut_t; }

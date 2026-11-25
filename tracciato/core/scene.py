@@ -38,7 +38,7 @@ MODES = {
     "esterno": "Esterno edificio",
     "multipiano": "Interno multi-piano",
 }
-DETAIL_RES = {"alta": 0.01, "media": 0.02, "bozza": 0.03}
+DETAIL_RES = {"massima": 0.005, "alta": 0.01, "media": 0.02, "bozza": 0.03}
 MAX_PIXELS = 36_000_000
 
 
@@ -104,7 +104,7 @@ class Level:
 class SceneParams:
     mode: str = "esterno"
     title: str = "RILIEVO"
-    detail: str = "media"
+    detail: str = "alta"
     scale: int = 1                      # 1:scale (1 = dimensioni reali)
     z0: float | None = None             # piano 0, quota assoluta
     bbox: list | None = None            # [xmin, ymin, zmin, xmax, ymax, zmax] dall'anteprima
@@ -128,7 +128,7 @@ class SceneParams:
         if p.scale not in (1, 10, 20, 50, 100, 200, 500):
             raise ValueError("Scala non valida")
         if p.detail not in DETAIL_RES:
-            p.detail = "media"
+            p.detail = "alta"
         p.z0 = None if p.z0 in ("", None) else float(p.z0)
         p.angle = float(p.angle or 0)
         p.cut_h, p.cut_t = float(p.cut_h), float(p.cut_t)
@@ -397,9 +397,7 @@ class Job:
 
         def draw(ax):
             if poly is not None:
-                q = np.vstack([poly, poly[:1]])
-                ax.plot(q[:, 0], q[:, 1], color=render.INK, lw=1.1, zorder=5)
-                cx, cy = poly.mean(0)
+                cx, cy = poly.mean(0)              # niente linea di sagoma nel disegno: solo nome, superficie, altezza
                 ax.text(cx, cy + 0.2, "SAGOMA", fontsize=7, weight="bold", ha="center", zorder=6)
                 ax.text(cx, cy - 0.3, f"{area:.2f} m²", fontsize=6.5, ha="center", zorder=6)
                 if H is not None:
