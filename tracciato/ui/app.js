@@ -77,6 +77,7 @@
       S.viewer = new window.TracciatoViewer($("gl"), $("ov"));
       if (S.viewer.failed) throw new Error("WebGL non disponibile");
       // linee già disegnate: trascinate nella vista in pianta (estremi liberi, tratto in ortogonale)
+      S.viewer.onSelect = (l) => selectLine(l);
       S.viewer.onEdit = (l, final) => {
         const row = document.querySelector(`.line-row[data-id="${l.id}"] .lmeta`);
         if (row) row.textContent = `${l.kind === "sezione" ? "Sezione" : "Prospetto"} · ${fmtNum(lineLen(l))} m`;
@@ -330,10 +331,11 @@
     for (const kind of ["prospetto", "sezione"]) {
       const box = $(kind === "sezione" ? "linesSezione" : "linesProspetto");
       const ls = S.lines.filter((l) => l.kind === kind);
-      box.innerHTML = ls.length ? ls.map((l) => `<div class="line-row${l.active ? "" : " off"}" data-id="${l.id}">
+      box.innerHTML = ls.length ? ls.map((l) => `<div class="line-row${l.active ? "" : " off"}${l.selected ? " sel" : ""}" data-id="${l.id}">
           <input type="checkbox" data-k="active" ${l.active ? "checked" : ""} aria-label="Includi ${esc(l.label)}">
           <input class="input badge-in ${kind}" data-k="label" value="${esc(l.label)}" maxlength="4" aria-label="Nome">
           <span class="lmeta">${kind === "sezione" ? "Sezione" : "Prospetto"} · ${fmtNum(lineLen(l))} m</span>
+          <button type="button" class="icon-btn" data-act="edit" title="Modifica nella pianta: trascina gli estremi, o il tratto per spostarla (frecce ↑↓ = 10 cm)" aria-label="Modifica">✎</button>
           <button type="button" class="icon-btn" data-act="flip" title="Inverti il verso di vista" aria-label="Inverti verso">⇄</button>
           <button type="button" class="icon-btn" data-act="del" title="Elimina" aria-label="Elimina">×</button>
           <div class="lparams">
@@ -347,6 +349,17 @@
           </div>
         </div>`).join("") : `<div class="muted small-note">${kind === "sezione" ? "Nessuna sezione: premi “Disegna” e fai due clic sulla nuvola." : "Nessun prospetto."}</div>`;
     }
+  }
+  // seleziona una linea: la vista passa in pianta, così si può trascinarla (estremi liberi, tratto in ortogonale)
+  function selectLine(l, goTop) {
+    S.lines.forEach((x) => (x.selected = x === l));
+    if (goTop && S.viewer) {
+      tab("cloud");
+      if (S.viewer.mode !== "top") setViewMode("top");
+      $("vHint").textContent = `Linea ${l.label}: trascina un estremo per modificarla, il tratto per spostarla in ortogonale · frecce ↑↓ = 10 cm (Maiusc 1 cm)`;
+      $("vHint").classList.add("active");
+    }
+    renderLines(); S.viewer && S.viewer.render();
   }
   function lineOf(e) { const r = e.target.closest(".line-row"); return r && S.lines.find((l) => l.id === +r.dataset.id); }
   for (const id of ["linesSezione", "linesProspetto"]) {
@@ -362,6 +375,7 @@
     box.addEventListener("click", (e) => {
       const b = e.target.closest("[data-act]"); if (!b) return;
       const l = lineOf(e); if (!l) return;
+      if (b.dataset.act === "edit") { selectLine(l, true); return; }
       if (b.dataset.act === "flip") { const t = l.p1; l.p1 = l.p2; l.p2 = t; }
       else if (b.dataset.act.startsWith("nudge")) {
         // 10 cm in ortogonale alla linea: + = verso la freccia di vista (normale sinistra p1→p2)
@@ -398,7 +412,7 @@
       if (!p1) return;
       const l = mkLine({ label: nextLabel(kind), kind, p1, p2 }, true);
       if (kind === "prospetto") l.t = 5;
-      S.lines.push(l); renderLines(); updateViewer();
+      S.lines.push(l); selectLine(l, true); updateViewer();   // appena disegnata: già selezionata e modificabile
     });
   }));
 

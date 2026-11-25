@@ -167,9 +167,10 @@ details.adv .panel-body { padding: 16px 0 0; gap: 16px; }
 
 /* linee di sezione / prospetto */
 .lines { display: flex; flex-direction: column; gap: 6px; }
-.line-row { display: grid; grid-template-columns: 18px 40px minmax(0, 1fr) 30px 30px; gap: 6px 8px; align-items: center;
+.line-row { display: grid; grid-template-columns: 18px 40px minmax(0, 1fr) 30px 30px 30px; gap: 6px 8px; align-items: center;
   padding: 8px; border: 1px solid var(--linea); }
 .line-row.off { opacity: .55; }
+.line-row.sel { outline: 2px solid var(--inchiostro); outline-offset: 2px; }
 .line-row > input[type=checkbox] { width: 16px; height: 16px; accent-color: var(--inchiostro); margin: 0; }
 .badge-in { width: 40px !important; height: 28px !important; padding: 0 !important; text-align: center; font: 600 13px var(--sans) !important;
   border: 0 !important; color: var(--bianco); }

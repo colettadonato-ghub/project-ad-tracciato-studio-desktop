@@ -9,6 +9,7 @@
  *   viewer.setLines([{p1, p2, kind, t, beyond, label, active}])   linee di sezione/prospetto (assolute)
  *   viewer.setLevels([{z, label}])               linee di quota (vista laterale)
  *   viewer.startDraw(cb)                         due clic → cb(p1, p2) in coordinate assolute
+ *   viewer.onSelect = (line) => {}              linea scelta con un clic
  *   viewer.onEdit = (line, final) => {}          linee già disegnate, in pianta: trascina un estremo per
  *                                                modificarlo, trascina il tratto per spostarla in
  *                                                ortogonale (solo lungo la normale); p1/p2 vengono
@@ -302,7 +303,17 @@
         const r = cv.getBoundingClientRect();
         this._drawClick(e.clientX - r.left, e.clientY - r.top, e.shiftKey);
       });
-      window.addEventListener("keydown", (e) => { if (e.key === "Escape" && this.draw) this.cancelDraw(); });
+      window.addEventListener("keydown", (e) => {
+        if (e.key === "Escape" && this.draw) this.cancelDraw();
+        const l = this.lines.find((x) => x.selected && x.active !== false);
+        if (!l || this.draw || this.mode !== "top" || !["ArrowUp", "ArrowDown"].includes(e.key)) return;
+        if (/^(INPUT|SELECT|TEXTAREA)$/.test((document.activeElement || {}).tagName)) return;
+        e.preventDefault();
+        const k = (e.key === "ArrowUp" ? 1 : -1) * (e.shiftKey ? 0.01 : 0.10);   // 10 cm (Maiusc: 1 cm)
+        const dx = l.p2[0] - l.p1[0], dy = l.p2[1] - l.p1[1], L = Math.hypot(dx, dy) || 1;
+        l.p1 = [l.p1[0] - dy / L * k, l.p1[1] + dx / L * k]; l.p2 = [l.p2[0] - dy / L * k, l.p2[1] + dx / L * k];
+        this.onEdit && this.onEdit(l, true); this.render();
+      });
     }
     _screenToPlane(px, py) {
       if (this.mode === "side") {
@@ -334,13 +345,13 @@
         const b = this.project(this.toLocal([l.p2[0], l.p2[1], 0]).slice(0, 2).concat(z));
         if (!a || !b) continue;
         const da = Math.hypot(px - a[0], py - a[1]), db = Math.hypot(px - b[0], py - b[1]);
-        if (da <= 10 && (!best || da < best.d)) best = { line: l, part: "p1", d: da };
-        if (db <= 10 && (!best || db < best.d)) best = { line: l, part: "p2", d: db };
+        if (da <= 12 && (!best || da < best.d)) best = { line: l, part: "p1", d: da };
+        if (db <= 12 && (!best || db < best.d)) best = { line: l, part: "p2", d: db };
         if (best) continue;
         const vx = b[0] - a[0], vy = b[1] - a[1], L2 = vx * vx + vy * vy || 1;
         const t = Math.max(0, Math.min(1, ((px - a[0]) * vx + (py - a[1]) * vy) / L2));
         const d = Math.hypot(px - (a[0] + vx * t), py - (a[1] + vy * t));
-        if (d <= 7) best = { line: l, part: "body", d: 100 + d };
+        if (d <= 10) best = { line: l, part: "body", d: 100 + d };
       }
       return best;
     }
@@ -349,6 +360,7 @@
       const p = this.unprojectToZ(px, py, z);
       const o1 = this.toLocal([l.p1[0], l.p1[1], 0]), o2 = this.toLocal([l.p2[0], l.p2[1], 0]);
       const L = Math.hypot(o2[0] - o1[0], o2[1] - o1[1]) || 1e-6;
+      l.selected = true; this.lines.forEach((x) => { if (x !== l) x.selected = false; }); this.onSelect && this.onSelect(l);
       this.edit = { line: l, part: h.part, p0: p, o1, o2, n: [-(o2[1] - o1[1]) / L, (o2[0] - o1[0]) / L], z };
       this.render();
     }
@@ -503,7 +515,7 @@
         }
         const a = P(0, 0), b = P(f.L, 0);
         if (!a || !b) continue;
-        g.strokeStyle = col; g.globalAlpha = on ? 1 : 0.35; g.lineWidth = l.focus ? 2.5 : 1.5;
+        g.strokeStyle = col; g.globalAlpha = on ? 1 : 0.35; g.lineWidth = l.focus || l.selected ? 2.5 : 1.5;
         g.setLineDash([10, 3, 2, 3]); g.beginPath(); g.moveTo(...a); g.lineTo(...b); g.stroke(); g.setLineDash([]);
         // frecce verso la vista
         const arrow = (q, s) => {
@@ -518,7 +530,12 @@
         arrow(a, 0); arrow(b, f.L);
         if (on && this.mode === "top" && !this.draw) {            // maniglie degli estremi (trascinabili)
           g.setLineDash([]); g.fillStyle = "#fff"; g.lineWidth = 1.5;
-          for (const q of [a, b]) { g.fillRect(q[0] - 4, q[1] - 4, 8, 8); g.strokeRect(q[0] - 4, q[1] - 4, 8, 8); }
+          const hs = l.selected ? 6 : 4;
+          for (const q of [a, b]) { g.fillRect(q[0] - hs, q[1] - hs, hs * 2, hs * 2); g.strokeRect(q[0] - hs, q[1] - hs, hs * 2, hs * 2); }
+          if (l.selected) {                                       // maniglia centrale: trascinala per spostare la linea
+            const m = P(f.L / 2, 0);
+            if (m) { g.beginPath(); g.arc(m[0], m[1], 7, 0, 7); g.fill(); g.stroke(); }
+          }
         }
         g.font = "600 13px Inter, 'Segoe UI', sans-serif";
         const lab = (q, s) => { const t = P(s, -0.7); if (t) { g.fillStyle = col; g.fillText(l.label, t[0] - 4, t[1] + 4); } };
