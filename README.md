@@ -55,7 +55,7 @@ Micro-app desktop di **AD Studio Tecnico**. Apre un rilievo laser (`.las`, `.laz
 
 ### File prodotti
 
-Gli elaborati vengono salvati accanto alla nuvola, nella sottocartella `Tracciato\`. Puoi cambiarla in *Cartella di destinazione*.
+Gli elaborati vengono salvati accanto alla nuvola, nella sottocartella `Tracciato\`, dentro una cartella per ogni elaborazione con data e ora (`AAAA-MM-GG_HH-MM`, es. `2026-11-25_20-44`). Puoi cambiare la cartella base in *Cartella di destinazione*.
 
 | File | Contenuto |
 |---|---|

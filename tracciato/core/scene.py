@@ -607,9 +607,11 @@ def run_scene(input_path, out_dir, p: SceneParams, on_event=None, cancelled=None
     src = Path(input_path)
     if not src.exists():
         raise FileNotFoundError(f"File non trovato: {src}")
-    out = Path(out_dir)
+    now = datetime.now()
+    # con `base` (interno: la cartella è già stata creata dalla pianta) si resta nella stessa sottocartella
+    out = Path(out_dir) if base else Path(out_dir) / now.strftime("%Y-%m-%d_%H-%M")
     out.mkdir(parents=True, exist_ok=True)
-    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    stamp = now.strftime("%Y%m%d-%H%M%S")
     base = Path(base) if base else out / f"{src.stem}_{p.mode}_{stamp}"
     files = {"log": str(base) + ".log", "json": str(base) + ".json"} if joblog else {}
 

@@ -26,6 +26,7 @@ STAGES = [
     ("pdf", "Export PDF e anteprima"),
 ]
 SUPPORTED = (".las", ".laz", ".e57")
+RUN_DIR_FMT = "%Y-%m-%d_%H-%M"      # nome della sottocartella di ogni elaborazione
 
 # livelli di dettaglio: voxel di sottocampionamento e risoluzione del raster
 DETAIL = {"alta": (0.01, 0.02), "media": (0.02, 0.03), "bozza": (0.03, 0.045)}
@@ -191,9 +192,10 @@ def run_job(input_path: str, out_dir: str, params: Params, on_event=None, cancel
     if not src.exists():
         raise FileNotFoundError(f"File non trovato: {src}")
 
-    out = Path(out_dir or default_output_dir(input_path))
+    now = datetime.now()
+    out = Path(out_dir or default_output_dir(input_path)) / now.strftime(RUN_DIR_FMT)   # una sottocartella per elaborazione
     out.mkdir(parents=True, exist_ok=True)
-    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    stamp = now.strftime("%Y%m%d-%H%M%S")
     base = out / f"{src.stem}_pianta_{stamp}"
     files = {k: str(base) + ext for k, ext in
              [("dxf", ".dxf"), ("pdf", ".pdf"), ("png", ".png"), ("preview", "_anteprima.png"),
