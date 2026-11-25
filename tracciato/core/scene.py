@@ -400,27 +400,12 @@ class Job:
                 q = np.vstack([poly, poly[:1]])
                 ax.plot(q[:, 0], q[:, 1], color=render.INK, lw=1.1, zorder=5)
                 cx, cy = poly.mean(0)
-                for a_, b_ in zip(poly, np.roll(poly, -1, 0)):
-                    L = math.dist(a_, b_)
-                    if L < 0.8:
-                        continue
-                    mpt = (a_ + b_) / 2
-                    e = b_ - a_
-                    nrm = np.array([e[1], -e[0]]) / L
-                    if np.dot(nrm, mpt - [cx, cy]) < 0:
-                        nrm = -nrm
-                    ang = math.degrees(math.atan2(e[1], e[0]))
-                    if ang > 90 or ang < -90:
-                        ang += 180
-                    ax.text(*(mpt + nrm * 0.35), f"{L:.2f}", fontsize=6, ha="center", va="center",
-                            rotation=ang, family="DejaVu Sans Mono", zorder=6)
                 ax.text(cx, cy + 0.2, "SAGOMA", fontsize=7, weight="bold", ha="center", zorder=6)
                 ax.text(cx, cy - 0.3, f"{area:.2f} m²", fontsize=6.5, ha="center", zorder=6)
                 if H is not None:
                     ax.text(cx, cy - 0.75, f"H max {H:.2f} m", fontsize=5.5, ha="center", color=render.MATITA,
                             zorder=6)
             self._marks(ax)
-            render.scale_bar(ax, ext[0], ext[2] - 0.9, ext[1] - ext[0])
             render.north(ax, ext[1] + 0.6, ext[3] - 1.4)
 
         png = self._file("_sagoma.png")
@@ -481,7 +466,6 @@ class Job:
 
             def draw(ax):
                 self._marks(ax)
-                render.scale_bar(ax, ext[0], ext[2] - 1.6, ext[1] - ext[0])
                 render.north(ax, ext[1] + 0.6, ext[3] - 1.4)
 
             slug = f"pianta-{i}"
@@ -533,23 +517,19 @@ class Job:
             marks = self._level_marks()
 
             def draw(ax, ext=ext, marks=marks):
-                for z, name in marks:
-                    if ext[2] - 0.5 <= z <= ext[3] + 0.5:
-                        render.level_line(ax, ext[0] - 0.3, ext[1] + 0.3, z, name)
-                render.dim_h(ax, max(ext[0], 0), min(ext[1], s["L"]), ext[2] - 0.7)
-                render.scale_bar(ax, ext[0], ext[2] - 1.5, ext[1] - ext[0])
+                pass     # nessuna linea di quota né di livello: solo il disegno
 
             kind = "sezione" if ln.kind == "sezione" else "prospetto"
             png = self._file(f"_{kind}-{_slug(ln.label)}.png")
             if kind == "sezione":
                 title = f"{p.title} — SEZIONE {ln.label}-{ln.label}'"
                 sub = f"Sezione {ln.label}-{ln.label}' · spessore del taglio {ln.t * 100:.0f} cm"
-                inf = (f"Lunghezza {s['L']:.2f} m · visto oltre {ln.beyond:.1f} m (in grigio) · quote dal piano 0"
-                       if ln.beyond > 0 else f"Lunghezza {s['L']:.2f} m · solo taglio · quote dal piano 0")
+                inf = (f"Lunghezza {s['L']:.2f} m · visto oltre {ln.beyond:.1f} m (in grigio)"
+                       if ln.beyond > 0 else f"Lunghezza {s['L']:.2f} m · solo taglio")
             else:
                 title = f"{p.title} — PROSPETTO {ln.label}"
                 sub = f"Prospetto {ln.label} · profondità {ln.t:.1f} m dalla linea di vista"
-                inf = f"Larghezza {s['L']:.2f} m · più scuro = più vicino · quote dal piano 0"
+                inf = f"Larghezza {s['L']:.2f} m · più scuro = più vicino"
             paper, _ = render.sheet(png, img, ext, p.scale, title, sub, inf, draw)
             self.outputs.append({"kind": kind, "label": f"{kind.capitalize()} {ln.label}", "png": png,
                                  "paper": paper, "info": {"length": round(s["L"], 2), "t": ln.t}})

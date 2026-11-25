@@ -1154,12 +1154,7 @@ def write_pdf(path_pdf, path_png, walls, ops, rooms, meta, a, path_preview=None)
             ax.text(c[0], c[1] + 0.12, f"VANO {i}", fontsize=7, ha="center", weight="bold")
             ax.text(c[0], c[1] - 0.18, f"{r['area']:.2f} m²", fontsize=6.5, ha="center")
         # niente linee di quota nella pianta
-        # barra di scala 0-5 m
-        bx, by = x0, y0 - 1.3
-        for i in range(5):
-            ax.add_patch(plt.Rectangle((bx + i, by), 1, 0.08, fc="black" if i % 2 == 0 else "white", ec="black", lw=0.4))
-        for i in range(6):
-            ax.text(bx + i, by - 0.2, f"{i}" + (" m" if i == 5 else ""), fontsize=5, ha="center")
+        # nessuna barra di scala
         ax.annotate("N*", (x1 + 0.8, y1 + 0.2), (x1 + 0.8, y1 - 0.6), ha="center", fontsize=7,
                     arrowprops=dict(arrowstyle="-|>", lw=0.8))
 
