@@ -394,13 +394,13 @@ class Job:
         img = np.ones((r.h, r.w), np.float32)
         img[has] = 0.93 - 0.38 * np.clip(top[has] / hmax, 0, 1)
         img[cut > 0] = 0.35
-        img[facade > 0] = 0.0
         box = crop_box([facade if facade.any() else cut, has.astype(np.uint8)], int(2.0 / res))
         if solid is not None:
             bb = crop_box([solid], int(6.0 / res))
             box = bb or box
         c0, c1, r0, r1 = box
         img = img[r0:r1, c0:c1]
+        facade_c = facade[r0:r1, c0:c1]
         ext = (r.x0 + c0 * res, r.x0 + c1 * res, r.y0 + r0 * res, r.y0 + r1 * res)
         info = {}
         if poly is not None:
@@ -411,6 +411,7 @@ class Job:
             info["height"] = round(H, 2)
 
         def draw(ax):
+            render.fill_mask(ax, facade_c, ext)             # facciate tagliate: vettoriale, bordi nitidi
             if poly is not None:
                 cx, cy = poly.mean(0)              # niente linea di sagoma nel disegno: solo nome, superficie, altezza
                 ax.text(cx, cy + 0.2, "SAGOMA", fontsize=7, weight="bold", ha="center", zorder=6)
@@ -471,13 +472,14 @@ class Job:
             under = clean((self.lv_under[i] > 0).astype(np.uint8), 4)
             img = np.ones((r.h, r.w), np.float32)
             img[under > 0] = 0.78
-            img[cuts[i] > 0] = 0.0
             img = img[r0:r1, c0:c1]
+            cut_c = cuts[i][r0:r1, c0:c1]
             n_cut = int(cuts[i].sum())
             if n_cut < 50:
                 log.warning(f"{lv.name}: quasi nessun punto alla quota di sezione (+{lv.z + lv.cut:.2f})")
 
-            def draw(ax):
+            def draw(ax, cut_c=cut_c):
+                render.fill_mask(ax, cut_c, ext)           # muri tagliati: vettoriale, bordi nitidi
                 self._marks(ax)
                 render.north(ax, ext[1] + 0.6, ext[3] - 1.4)
 
@@ -513,7 +515,6 @@ class Job:
                     v = np.where(has_d, 0.55 + 0.38 * dd, 1.0).astype(np.float32)
                     v = cv2.erode(v, np.ones((3, 3), np.uint8))              # chiude i buchi tra i punti
                     img = np.minimum(img, v)
-                img[cut > 0] = 0.0
                 main = cut
             else:
                 v = np.where(has_d, 0.10 + 0.72 * np.clip(depth / ln.t, 0, 1) ** 0.8, 1.0).astype(np.float32)
@@ -527,10 +528,12 @@ class Job:
             c0, c1, r0, r1 = box
             img = img[r0:r1, c0:c1]
             ext = (r.x0 + c0 * res, r.x0 + c1 * res, r.y0 + r0 * res, r.y0 + r1 * res)
+            cut_c = main[r0:r1, c0:c1] if ln.kind == "sezione" else None
             marks = self._level_marks()
 
-            def draw(ax, ext=ext, marks=marks):
-                pass     # nessuna linea di quota né di livello: solo il disegno
+            def draw(ax, ext=ext, marks=marks, cut_c=cut_c):
+                if cut_c is not None:
+                    render.fill_mask(ax, cut_c, ext)       # parti tagliate: vettoriale, bordi nitidi     # nessuna linea di quota né di livello: solo il disegno
 
             kind = "sezione" if ln.kind == "sezione" else "prospetto"
             png = self._file(f"_{kind}-{_slug(ln.label)}.png")

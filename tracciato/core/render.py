@@ -140,6 +140,53 @@ def sheet(path_png, img, extent, scale, title, subtitle, info, draw=None, margin
     return paper, dpi
 
 
+# ------------------------------------------------------------------ elementi tagliati in vettoriale
+def mask_polygons(mask, ext, up=2, window=5, eps=0.3, min_px=4):
+    """Contorni lisci di una maschera binaria, in coordinate metriche (x0, x1, y0, y1 = ext).
+
+    I contorni a gradini della griglia vengono tracciati a risoluzione doppia, levigati lungo la curva
+    (media mobile) e semplificati: il risultato è un disegno vettoriale nitido a qualsiasi ingrandimento,
+    come i muri della pianta d'interno. Ritorna una lista di array (N, 2) [esterni e fori]."""
+    import cv2
+    m = (np.asarray(mask) > 0).astype(np.uint8)
+    if not m.any():
+        return []
+    h, w = m.shape
+    x0, x1, y0, y1 = ext
+    sx, sy = (x1 - x0) / w, (y1 - y0) / h
+    big = cv2.resize(m, None, fx=up, fy=up, interpolation=cv2.INTER_NEAREST) if up > 1 else m
+    cnts, _ = cv2.findContours(big, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_NONE)
+    out = []
+    k = np.ones(window) / window
+    for c in cnts:
+        if len(c) < 4 or cv2.contourArea(c) < min_px * up * up:
+            continue
+        p = c[:, 0, :].astype(np.float64)
+        if len(p) > window * 2:
+            pad = window // 2
+            ext_p = np.vstack([p[-pad:], p, p[:pad]])           # contorno chiuso: media mobile circolare
+            p = np.c_[np.convolve(ext_p[:, 0], k, "valid"), np.convolve(ext_p[:, 1], k, "valid")]
+        p = cv2.approxPolyDP(p.astype(np.float32).reshape(-1, 1, 2), eps * up, True)[:, 0, :].astype(np.float64)
+        if len(p) < 3:
+            continue
+        out.append(np.c_[x0 + (p[:, 0] + 0.5) / up * sx, y0 + (p[:, 1] + 0.5) / up * sy])
+    return out
+
+
+def fill_mask(ax, mask, ext, color="#000000", zorder=3, **kw):
+    """Riempie in vettoriale (bordi nitidi) i pixel attivi di `mask` sull'asse `ax`."""
+    from matplotlib.patches import PathPatch
+    from matplotlib.path import Path as MPath
+    polys = mask_polygons(mask, ext, **kw)
+    if not polys:
+        return
+    verts, codes = [], []
+    for p in polys:
+        verts += p.tolist() + [p[0].tolist()]
+        codes += [MPath.MOVETO] + [MPath.LINETO] * (len(p) - 1) + [MPath.CLOSEPOLY]
+    ax.add_patch(PathPatch(MPath(verts, codes), facecolor=color, edgecolor=color, lw=0.15, zorder=zorder))
+
+
 # ------------------------------------------------------------------ annotazioni ricorrenti
 def scale_bar(ax, x, y, length_hint):
     step = nice_step(length_hint)
