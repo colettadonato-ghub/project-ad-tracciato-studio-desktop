@@ -1,6 +1,6 @@
 """Genera una nuvola di punti sintetica di un appartamento (per testare la pipeline).
 Muri esterni 30 cm, tramezzi 10 cm, porte, finestre, arredi, rumore, rotazione arbitraria.
-Usata anche da "Tracciato --selftest".
+Usata anche da "AD-Tracciato-Studio-Pro --selftest".
 """
 import numpy as np
 import laspy

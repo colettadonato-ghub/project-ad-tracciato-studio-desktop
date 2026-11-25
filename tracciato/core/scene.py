@@ -27,7 +27,7 @@ import numpy as np
 import cv2
 from scipy import ndimage
 
-from .. import __version__
+from .. import __app_name__, __version__
 from . import engine, render
 from .logs import JobLog
 
@@ -632,7 +632,7 @@ def run_scene(input_path, out_dir, p: SceneParams, on_event=None, cancelled=None
         emit({"type": "progress", "stage": stage_name, "value": round(float(frac), 3)})
 
     hooks = engine.Hooks(progress=progress, stage=stage, cancelled=cancelled)
-    summary = {"app": "Tracciato", "version": __version__, "mode": p.mode, "mode_label": MODES[p.mode],
+    summary = {"app": __app_name__, "version": __version__, "mode": p.mode, "mode_label": MODES[p.mode],
                "input": str(src), "output_dir": str(out), "params": _params_json(p),
                "started": datetime.now().isoformat(timespec="seconds"), "status": "running"}
     t_start = time.perf_counter()
@@ -644,7 +644,7 @@ def run_scene(input_path, out_dir, p: SceneParams, on_event=None, cancelled=None
     job = None
     with ctx:
         try:
-            log.info(f"{MODES[p.mode]}: {src} (Tracciato {__version__})")
+            log.info(f"{MODES[p.mode]}: {src} ({__app_name__} {__version__})")
             log.info("Parametri: " + json.dumps(summary["params"], ensure_ascii=False))
             e57_raw = src.suffix.lower() == ".e57"
             if not p.bbox:

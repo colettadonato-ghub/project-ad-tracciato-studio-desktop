@@ -1,8 +1,8 @@
-# Tracciato: dalla nuvola di punti agli elaborati
+# AD - Tracciato Studio Pro: dalla nuvola di punti agli elaborati
 
 Micro-app desktop di **AD Studio Tecnico**. Apre un rilievo laser (`.las`, `.laz`, `.e57`) e ne mostra un'**anteprima 3D**. Poi chiede cosa rappresenta la nuvola e, in base alla risposta, i parametri necessari. Infine genera le tavole in **PNG**.
 
-È la versione "lite", per un singolo PC, della funzione *Rilievo* della piattaforma (vedi `design/webapp/Rilievo.html`). Usa lo stesso motore e lo stesso sistema visivo, così il codice passa alla web app senza riscritture. Si distribuisce come cartella con `Tracciato.exe`: sul PC dello studio non serve installare nulla.
+È la versione "lite", per un singolo PC, della funzione *Rilievo* della piattaforma (vedi `design/webapp/Rilievo.html`). Usa lo stesso motore e lo stesso sistema visivo, così il codice passa alla web app senza riscritture. Si distribuisce come cartella con `AD-Tracciato-Studio-Pro.exe`: sul PC dello studio non serve installare nulla.
 
 ## Uso
 
@@ -93,16 +93,16 @@ Lo script:
 1. crea `.venv`;
 2. installa le dipendenze;
 3. esegue il **selftest**: tre nuvole sintetiche, cioè l'appartamento, un edificio 12 × 9 m visto da fuori e un interno su due livelli con scala e soppalco;
-4. crea `dist\Tracciato\`.
+4. crea `dist\AD-Tracciato-Studio-Pro\`.
 
 Per distribuirla copia l'intera cartella, anche sul NAS. Non servono dipendenze sul PC di destinazione.
 
 | Eseguibile | Uso |
 |---|---|
-| `Tracciato.exe` | app con interfaccia |
-| `TracciatoCLI.exe --selftest` | verifica l'installazione su un PC nuovo (i 3 tipi) |
-| `TracciatoCLI.exe --cli rilievo.e57 --scale 50 --cut 1.2` | pianta d'interno senza interfaccia |
-| `TracciatoCLI.exe --scene esterno rilievo.las [--params p.json] [--out D:\Tavole]` | elaborati per tipo. Senza `--params` usa piano 0, livelli e linee proposti dall'anteprima |
+| `AD-Tracciato-Studio-Pro.exe` | app con interfaccia |
+| `AD-Tracciato-Studio-Pro-CLI.exe --selftest` | verifica l'installazione su un PC nuovo (i 3 tipi) |
+| `AD-Tracciato-Studio-Pro-CLI.exe --cli rilievo.e57 --scale 50 --cut 1.2` | pianta d'interno senza interfaccia |
+| `AD-Tracciato-Studio-Pro-CLI.exe --scene esterno rilievo.las [--params p.json] [--out D:\Tavole]` | elaborati per tipo. Senza `--params` usa piano 0, livelli e linee proposti dall'anteprima |
 
 Per lo sviluppo: `avvia_sviluppo.bat` apre l'app da sorgente con gli strumenti sviluppatore.
 

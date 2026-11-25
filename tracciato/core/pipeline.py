@@ -9,7 +9,7 @@ from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
 
-from .. import __version__
+from .. import __app_name__, __version__
 from . import engine
 from .logs import JobLog
 
@@ -217,7 +217,7 @@ def run_job(input_path: str, out_dir: str, params: Params, on_event=None, cancel
         emit({"type": "progress", "stage": stage_name, "value": round(float(frac), 3)})
 
     hooks = engine.Hooks(progress=progress, stage=stage, cancelled=cancelled)
-    summary = {"app": "Tracciato", "version": __version__, "input": str(src), "output_dir": str(out),
+    summary = {"app": __app_name__, "version": __version__, "input": str(src), "output_dir": str(out),
                "params": asdict(params), "started": datetime.now().isoformat(timespec="seconds"),
                "files": files, "status": "running"}
 
@@ -227,7 +227,7 @@ def run_job(input_path: str, out_dir: str, params: Params, on_event=None, cancel
     t_start = time.perf_counter()
     with JobLog(Path(files["log"]), sink=ui_log):
         try:
-            log.info(f"Elaborazione di {src} (Tracciato {__version__})")
+            log.info(f"Elaborazione di {src} ({__app_name__} {__version__})")
             log.info("Parametri: " + json.dumps(asdict(params), ensure_ascii=False))
             a = params.engine_args()
             # Per file E57: usa SEMPRE il parser integrato (puro Python) invece di pye57/libe57.

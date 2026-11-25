@@ -1,12 +1,12 @@
 """Punto d'ingresso.
 
-  Tracciato.exe                          apre l'interfaccia
-  Tracciato.exe --cli nuvola.e57 [...]   pianta d'interno da riga di comando (come la 0.1)
-  Tracciato.exe --scene esterno|multipiano|interno nuvola.las [--params parametri.json] [--out cartella]
+  AD-Tracciato-Studio-Pro.exe                          apre l'interfaccia
+  AD-Tracciato-Studio-Pro.exe --cli nuvola.e57 [...]   pianta d'interno da riga di comando (come la 0.1)
+  AD-Tracciato-Studio-Pro.exe --scene esterno|multipiano|interno nuvola.las [--params parametri.json] [--out cartella]
                                          elaborati per tipo di rilievo; senza --params usa l'anteprima
                                          per proporre piano 0, livelli e linee
-  Tracciato.exe --selftest               genera nuvole di prova e le elabora (verifica installazione)
-  Tracciato.exe --debug                  interfaccia con strumenti sviluppatore
+  AD-Tracciato-Studio-Pro.exe --selftest               genera nuvole di prova e le elabora (verifica installazione)
+  AD-Tracciato-Studio-Pro.exe --debug                  interfaccia con strumenti sviluppatore
 """
 import argparse
 import json
@@ -16,7 +16,7 @@ import sys
 def _cli(argv):
     from .core import pipeline
     from .core.logs import setup_logging
-    ap = argparse.ArgumentParser(prog="Tracciato --cli")
+    ap = argparse.ArgumentParser(prog="AD-Tracciato-Studio-Pro --cli")
     ap.add_argument("input")
     ap.add_argument("--out", default="")
     ap.add_argument("--cut", type=float, default=1.10)
@@ -54,7 +54,7 @@ def auto_scene_params(prev: dict, mode: str) -> dict:
 def _scene_cli(argv):
     from .core import engine, pipeline, preview, scene
     from .core.logs import setup_logging, system_summary
-    ap = argparse.ArgumentParser(prog="Tracciato --scene")
+    ap = argparse.ArgumentParser(prog="AD-Tracciato-Studio-Pro --scene")
     ap.add_argument("mode", choices=list(scene.MODES))
     ap.add_argument("input")
     ap.add_argument("--out", default="")

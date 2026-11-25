@@ -1,8 +1,8 @@
 @echo off
 REM ============================================================
-REM  Tracciato - build dell'eseguibile Windows
+REM  AD - Tracciato Studio Pro - build dell'eseguibile Windows
 REM  Requisiti: Python 3.12 (64 bit) installato da python.org
-REM  Risultato: dist\Tracciato\Tracciato.exe
+REM  Risultato: dist\AD-Tracciato-Studio-Pro\AD-Tracciato-Studio-Pro.exe
 REM ============================================================
 setlocal
 cd /d "%~dp0"
@@ -26,9 +26,9 @@ echo [4/4] Creo l'eseguibile
 pyinstaller --noconfirm --clean tracciato.spec || goto :err
 
 echo.
-echo  Fatto: dist\Tracciato\Tracciato.exe
-echo  Per distribuirlo copia l'intera cartella dist\Tracciato (anche su NAS).
-echo  Verifica: dist\Tracciato\TracciatoCLI.exe --selftest
+echo  Fatto: dist\AD-Tracciato-Studio-Pro\AD-Tracciato-Studio-Pro.exe
+echo  Per distribuirlo copia l'intera cartella dist\AD-Tracciato-Studio-Pro (anche su NAS).
+echo  Verifica: dist\AD-Tracciato-Studio-Pro\AD-Tracciato-Studio-Pro-CLI.exe --selftest
 exit /b 0
 
 :err

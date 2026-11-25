@@ -1,4 +1,4 @@
-# Tracciato — Contesto tecnico sviluppo
+# AD - Tracciato Studio Pro — Contesto tecnico sviluppo
 
 > Ultimo aggiornamento: 2026-11-25  
 > Versione app: 0.1.6  
@@ -22,7 +22,7 @@ desktop-lite-app/
 │       ├── index.html    # UI principale (parametri, drop zone)
 │       ├── app.js        # logica UI: readParams, applyParams, eventi
 │       └── styles.css
-├── build.bat             # PyInstaller → dist/Tracciato/Tracciato.exe
+├── build.bat             # PyInstaller → dist/AD-Tracciato-Studio-Pro/AD-Tracciato-Studio-Pro.exe
 ├── tracciato.spec        # spec PyInstaller
 └── requirements.txt
 ```
@@ -144,14 +144,14 @@ build.bat
 
 > ⚠️ Cancellare sempre `__pycache__` prima del rebuild: PyInstaller può includere `.pyc` stale e non vedere le modifiche ai sorgenti.
 
-Output: `dist\Tracciato\Tracciato.exe` (standalone, copiabile su qualsiasi PC Windows).
+Output: `dist\AD-Tracciato-Studio-Pro\AD-Tracciato-Studio-Pro.exe` (standalone, copiabile su qualsiasi PC Windows).
 
 ---
 
 ## 7. Test di regressione
 
 ```bat
-dist\Tracciato\Tracciato.exe --selftest
+dist\AD-Tracciato-Studio-Pro\AD-Tracciato-Studio-Pro-CLI.exe --selftest
 ```
 
 Output atteso (appartamento_prova.las interno):

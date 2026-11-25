@@ -1,7 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
-# PyInstaller: due eseguibili nella stessa cartella dist\Tracciato\
-#   Tracciato.exe     → app con interfaccia (senza console)
-#   TracciatoCLI.exe  → riga di comando: --cli, --selftest
+# PyInstaller: due eseguibili nella stessa cartella dist\AD-Tracciato-Studio-Pro\
+#   AD-Tracciato-Studio-Pro.exe     → app con interfaccia (senza console)
+#   AD-Tracciato-Studio-Pro-CLI.exe  → riga di comando: --cli, --selftest
 from PyInstaller.utils.hooks import collect_data_files, collect_submodules
 
 datas = [("tracciato/ui", "tracciato/ui")]
@@ -17,8 +17,8 @@ a = Analysis(["run_tracciato.py"], pathex=["."], datas=datas, hiddenimports=hidd
              noarchive=False)
 pyz = PYZ(a.pure)
 
-gui = EXE(pyz, a.scripts, [], exclude_binaries=True, name="Tracciato", console=False,
+gui = EXE(pyz, a.scripts, [], exclude_binaries=True, name="AD-Tracciato-Studio-Pro", console=False,
           icon="assets/tracciato.ico", version=None)
-cli = EXE(pyz, a.scripts, [], exclude_binaries=True, name="TracciatoCLI", console=True,
+cli = EXE(pyz, a.scripts, [], exclude_binaries=True, name="AD-Tracciato-Studio-Pro-CLI", console=True,
           icon="assets/tracciato.ico")
-coll = COLLECT(gui, cli, a.binaries, a.datas, strip=False, upx=False, name="Tracciato")
+coll = COLLECT(gui, cli, a.binaries, a.datas, strip=False, upx=False, name="AD-Tracciato-Studio-Pro")

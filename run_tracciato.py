@@ -1,4 +1,4 @@
-"""Avvio di Tracciato (usato da PyInstaller e da `python run_tracciato.py`)."""
+"""Avvio di AD - Tracciato Studio Pro (usato da PyInstaller e da `python run_tracciato.py`)."""
 import multiprocessing
 
 from tracciato.__main__ import run

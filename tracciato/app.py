@@ -280,7 +280,7 @@ def main(debug=False):
         api._previous_crash = previous
     index = resource_dir() / "ui" / "index.html"
     window = webview.create_window(
-        f"{__app_name__} — AD Studio Tecnico", url=str(index), js_api=api,
+        __app_name__, url=str(index), js_api=api,
         width=1440, height=920, min_size=(1180, 740), background_color="#F6F5F2", text_select=True)
     api._window = window
     def _closed():
