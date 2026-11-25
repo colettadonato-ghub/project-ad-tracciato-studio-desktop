@@ -1,7 +1,7 @@
 # AD - Tracciato Studio Pro — Contesto tecnico sviluppo
 
 > Ultimo aggiornamento: 2026-11-25  
-> Versione app: 0.1.6  
+> Versione app: 0.3.0  
 > File principale: `desktop-lite-app/`
 
 ---

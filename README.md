@@ -134,6 +134,13 @@ desktop-lite-app/
 
 ## Versioni
 
+- **0.3.0**
+  - Rinominata in *AD - Tracciato Studio Pro* (eseguibili `AD-Tracciato-Studio-Pro.exe` e `-CLI.exe`).
+  - Elaborati salvati in una sottocartella `AAAA-MM-GG_HH-MM` per ogni elaborazione.
+  - Scala delle tavole selezionabile, predefinita 1:1 (PNG fuori formato calibrati sulle misure reali); PDF in scala standard che entra in A0.
+  - Qualità: PNG a 300 dpi, muri, facciate e sezioni tagliate disegnati in vettoriale (bordi nitidi), dettaglio predefinito 1 cm e opzione 0,5 cm, tetto dei pixel adattato alla RAM libera.
+  - Tavole senza linee di quota, linee di sagoma e barra di scala; DXF senza contorni dei vani né quote; misure di porte e finestre opzionali.
+  - Viewer: linee di sezione e prospetto modificabili (sblocco per singola linea o gruppo, estremi, spostamento ortogonale, coordinate numeriche), assi cartesiani con origine e quota 0 impostabili, colore reale RGB (LAS/LAZ), pannelli laterali apribili e chiudibili.
 - **0.2.0**
   - Anteprima 3D della nuvola (3D / pianta / laterale), con cache.
   - Scelta del tipo di rilievo con proposta automatica.
