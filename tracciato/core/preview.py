@@ -25,8 +25,35 @@ from . import engine
 
 log = logging.getLogger("tracciato.preview")
 
-PREVIEW_VERSION = 1
+PREVIEW_VERSION = 2          # 2: colore RGB dei punti (LAS/LAZ)
 DEFAULT_TARGET = 400_000
+
+
+def _iter_with_rgb(path, e57_raw):
+    """Come engine.iter_chunks, ma con il colore RGB (uint8, N×3) quando il file lo contiene.
+
+    Colore disponibile per LAS/LAZ con formato punto 2, 3, 5, 7, 8, 10 (campi red/green/blue).
+    Per E57 e per i LAS senza colore ritorna rgb=None."""
+    ext = Path(path).suffix.lower()
+    if ext in (".las", ".laz"):
+        import laspy
+        with laspy.open(path) as f:
+            has = all(d in f.header.point_format.dimension_names for d in ("red", "green", "blue"))
+            total = max(int(f.header.point_count), 1)
+            done = 0
+            for pts in f.chunk_iterator(2_000_000):
+                done += len(pts)
+                xyz = np.c_[pts.x, pts.y, pts.z]
+                rgb = None
+                if has:
+                    c = np.c_[pts.red, pts.green, pts.blue].astype(np.uint32)
+                    # i LAS usano 16 bit; molti software scrivono comunque valori a 8 bit
+                    rgb = c if c.max() > 255 else c * 257
+                    rgb = (rgb >> 8).astype(np.uint8)
+                yield xyz, done / total, rgb
+        return
+    for c, frac in engine.iter_chunks(path, e57_use_raw=e57_raw):
+        yield c, frac, None
 
 
 # ------------------------------------------------------------------ cache
@@ -155,31 +182,48 @@ def build_preview(path: str, total_hint=None, target: int = DEFAULT_TARGET, hook
         e57_raw = ext == ".e57"            # come pipeline.run_job: parser integrato, niente crash nativi
     p = 1.0 if not total_hint else min(1.0, 1.6 * target / max(total_hint, 1))
     rng = np.random.default_rng(7)
-    keep, n_read = [], 0
+    keep, keep_rgb, n_read = [], [], 0
     mn = np.full(3, np.inf)
     mx = np.full(3, -np.inf)
     hooks.stage("preview")
-    for c, frac in engine.iter_chunks(path, e57_use_raw=e57_raw):
+    for c, frac, rgb in _iter_with_rgb(path, e57_raw):
         hooks.check()
-        c = c[np.isfinite(c).all(axis=1)]
+        ok = np.isfinite(c).all(axis=1)
+        c = c[ok]
+        if rgb is not None:
+            rgb = rgb[ok]
         if not len(c):
             continue
         n_read += len(c)
         mn = np.minimum(mn, c.min(0))
         mx = np.maximum(mx, c.max(0))
         if p < 1.0:
-            c = c[rng.random(len(c)) < p]
+            sel = rng.random(len(c)) < p
+            c = c[sel]
+            if rgb is not None:
+                rgb = rgb[sel]
         keep.append(c.astype(np.float64))
+        keep_rgb.append(rgb)
         # senza conteggio noto: se il campione cresce troppo lo dimezzo
         if total_hint is None and sum(len(k) for k in keep) > 4 * target:
             keep = [k[::2] for k in keep]
+            keep_rgb = [None if k is None else k[::2] for k in keep_rgb]
         hooks.progress("preview", frac)
     if n_read == 0:
         raise RuntimeError("Il file non contiene punti leggibili")
     P = np.vstack(keep)
     del keep
+    C = None
+    if keep_rgb and all(k is not None for k in keep_rgb):
+        C = np.vstack(keep_rgb)
+        if not C.any():            # tutto nero: il file ha i campi colore ma non li usa
+            C = None
+    del keep_rgb
     if len(P) > target:
-        P = P[rng.choice(len(P), target, replace=False)]
+        idx = rng.choice(len(P), target, replace=False)
+        P = P[idx]
+        if C is not None:
+            C = C[idx]
 
     z = P[:, 2]
     peaks = horizontal_peaks(z)
@@ -209,6 +253,7 @@ def build_preview(path: str, total_hint=None, target: int = DEFAULT_TARGET, hook
         "path": str(path), "points_file": int(n_read), "points_preview": int(len(P)),
         "bbox": [float(v) for v in (*mn, *mx)],
         "data": base64.b64encode(q.tobytes()).decode("ascii"),
+        "rgb": base64.b64encode(np.ascontiguousarray(C).tobytes()).decode("ascii") if C is not None else None,
         "peaks": peaks,
         "z_hist": {"counts": hist.astype(int).tolist(), "z_min": float(edges[0]), "z_max": float(edges[-1])},
         "angle": round(angle, 3),

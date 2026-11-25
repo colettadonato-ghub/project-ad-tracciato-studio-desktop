@@ -107,6 +107,20 @@
   $("vColor").onchange = () => S.viewer && S.viewer.setColor(+$("vColor").value);
   $("vSize").oninput = () => S.viewer && S.viewer.setSize(+$("vSize").value);
   $("vAxes").onchange = () => S.viewer && S.viewer.setAxes($("vAxes").checked);
+  // pannelli laterali apribili/chiudibili per allargare l'area di lavoro (la scelta resta nel browser)
+  function setPanels(left, right) {
+    const w = document.querySelector(".work"); if (!w) return;
+    w.classList.toggle("no-left", !left); w.classList.toggle("no-right", !right);
+    $("btnSideL").setAttribute("aria-pressed", left); $("btnSideR").setAttribute("aria-pressed", right);
+    S.panels = { left, right };
+    try { localStorage.setItem("tracciato.panels", JSON.stringify(S.panels)); } catch (e) { /* non disponibile */ }
+    S.viewer && S.viewer.resize();
+  }
+  $("btnSideL").onclick = () => setPanels(!S.panels.left, S.panels.right);
+  $("btnSideR").onclick = () => setPanels(S.panels.left, !S.panels.right);
+  try { S.panels = JSON.parse(localStorage.getItem("tracciato.panels")) || null; } catch (e) { S.panels = null; }
+  S.panels = S.panels || { left: true, right: true };
+  setPanels(S.panels.left, S.panels.right);
   $("vFit").onclick = () => S.viewer && S.viewer.fit();
 
   function tab(which) {
@@ -204,7 +218,16 @@
     const bin = atob(prev.data), u8 = new Uint8Array(bin.length);
     for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
     const q = new Uint16Array(u8.buffer);
-    if (S.viewer) { S.viewer.setCloud(q, prev.bbox, prev.angle || 0); setViewMode("3d"); }
+    let rgb = null;
+    if (prev.rgb) { const b2 = atob(prev.rgb); rgb = new Uint8Array(b2.length); for (let i = 0; i < b2.length; i++) rgb[i] = b2.charCodeAt(i); }
+    if (S.viewer) {
+      S.viewer.setCloud(q, prev.bbox, prev.angle || 0, rgb); setViewMode("3d");
+      // colore reale solo se il file lo contiene (LAS/LAZ con RGB): in quel caso è la vista iniziale
+      $("optRgb").disabled = !rgb;
+      $("optRgb").textContent = rgb ? "Colore reale (RGB)" : "Colore reale (non presente nel file)";
+      $("vColor").value = rgb ? "3" : ($("vColor").value === "3" ? "0" : $("vColor").value);
+      S.viewer.setColor(+$("vColor").value);
+    }
     const b = prev.bbox, sug = prev.suggest;
     $("title").textContent = S.file.name;
     $("fileMeta").textContent = `${info.format || ""} · ${info.size ? fmtSize(info.size) : ""} · ${fmtPts(prev.points_file)} punti${info.scans ? ` · ${info.scans} scansioni` : ""}`;
@@ -514,6 +537,7 @@
   async function run() {
     if (!S.file || !S.prev || !S.mode || S.busy) return;
     if (S.mode === "multipiano" && !S.levels.length) { toast("Aggiungi almeno un livello", true); return; }
+    if (S.panels && !S.panels.right) setPanels(S.panels.left, true);   // il pannello di avanzamento si riapre da solo
     resetPipeline();
     const params = buildParams();
     const r = await S.api.start_scene(S.file.path, S.outDir, S.mode, params);

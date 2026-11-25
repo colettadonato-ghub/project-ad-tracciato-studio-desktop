@@ -279,7 +279,16 @@ details.adv .panel-body { padding: 16px 0 0; gap: 16px; }
 .toast.err { background: var(--errore); }
 .toast button { background: none; border: 0; color: inherit; font-size: 18px; line-height: 1; padding: 0; }
 
+.work.no-right { grid-template-columns: 360px minmax(0, 1fr); }
+.work.no-left { grid-template-columns: minmax(0, 1fr) 290px; }
+.work.no-left.no-right { grid-template-columns: minmax(0, 1fr); }
+.work.no-right > .side-right, .work.no-left > .side-left { display: none; }
+.btn[aria-pressed="false"] { background: var(--bianco); }
 @media (max-width: 1360px) {
+  .work.no-left { grid-template-columns: minmax(0, 1fr); }
+  .work.no-left > .side-right { grid-column: auto; }
+  .work.no-right { grid-template-columns: 340px minmax(0, 1fr); }
+  .work.no-left.no-right { grid-template-columns: minmax(0, 1fr); }
   .work { grid-template-columns: 340px minmax(0, 1fr); }
   .work > .side-right { grid-column: 1 / -1; min-height: 260px; }
 }

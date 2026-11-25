@@ -3,15 +3,15 @@
  * Coordinate "locali" = coordinate del file − origine (centro XY del riquadro, Z minima): i float32
  * della GPU restano precisi anche con coordinate UTM/Gauss-Boaga a 6–7 cifre.
  *
- *   viewer.setCloud(quantizedUint16, bbox)      carica il campione dell'anteprima
+ *   viewer.setCloud(quantizedUint16, bbox, angle, rgbUint8)   carica il campione dell'anteprima (rgb facoltativo: colore reale)
  *   viewer.setMode("3d" | "top" | "side")        vista prospettica, pianta, laterale (ortogonali)
  *   viewer.setBands([{z0, z1}])                  fasce orizzontali evidenziate (quote assolute)
  *   viewer.setLines([{p1, p2, kind, t, beyond, label, active}])   linee di sezione/prospetto (assolute)
  *   viewer.setLevels([{z, label}])               linee di quota (vista laterale)
  *   viewer.startDraw(cb)                         due clic → cb(p1, p2) in coordinate assolute
  *   viewer.onLock = () => {}                     Esc: blocca di nuovo tutte le linee
- *   viewer.setAxes(true)                         assi cartesiani + griglia sul piano 0, coordinate dei punti (passando
- *                                                col mouse) e delle linee. Assi X/Y ruotati sui muri (angolo
+ *   viewer.setAxes(true)                         assi cartesiani + griglia sul piano 0; coordinate degli estremi delle linee
+ *                                                solo mentre sono in modifica. Assi X/Y ruotati sui muri (angolo
  *                                                dell'anteprima), origine al centro del rilievo, Z dal piano 0:
  *                                                una linea ortogonale ai muri ha Δ 0,00° e stessa X (o Y) agli estremi
  *   viewer.onSelect = (line) => {}              linea scelta con un clic
@@ -23,6 +23,7 @@
 (() => {
   const VS = `
     attribute vec3 aPos;
+    attribute vec3 aCol;
     uniform mat4 uMVP;
     uniform float uSize, uZmin, uZmax;
     uniform int uColor;
@@ -46,7 +47,7 @@
       gl_Position = uMVP * vec4(aPos, 1.0);
       gl_PointSize = uSize;
       float t = clamp((aPos.z - uZmin) / max(uZmax - uZmin, 0.001), 0.0, 1.0);
-      vec3 c = uColor == 0 ? ramp(t) : (uColor == 1 ? spectrum(t) : vec3(0.18));
+      vec3 c = uColor == 0 ? ramp(t) : (uColor == 1 ? spectrum(t) : (uColor == 3 ? aCol : vec3(0.18)));
       bool hl = false, hv = false, any = false;
       for (int i = 0; i < 6; i++) {
         if (i >= uNBands) break;
@@ -152,6 +153,8 @@
       this.loc.uLA = gl.getUniformLocation(p, "uLA[0]");
       this.loc.uLB = gl.getUniformLocation(p, "uLB[0]");
       this.aPos = gl.getAttribLocation(p, "aPos");
+      this.aCol = gl.getAttribLocation(p, "aCol");
+      this.cbuf = gl.createBuffer(); this.hasRgb = false;
       this.buf = gl.createBuffer();
       this.n = 0;
       this.mode = "3d"; this.colorMode = 0; this.size = 2;
@@ -164,7 +167,7 @@
     }
 
     // -------------------------------------------------------------- dati
-    setCloud(q, bbox, angleDeg = 0) {
+    setCloud(q, bbox, angleDeg = 0, rgb = null) {
       const gl = this.gl;
       const [x0, y0, z0, x1, y1, z1] = bbox;
       this.bbox = bbox;
@@ -176,10 +179,13 @@
       for (let i = 0, j = 0; i < n; i++, j += 3) {
         pos[j] = ox + q[j] * sx; pos[j + 1] = oy + q[j + 1] * sy; pos[j + 2] = q[j + 2] * sz;
       }
-      this.n = n; this.pos = pos;
+      this.n = n;
       this.ext = [x1 - x0, y1 - y0, z1 - z0];
       gl.bindBuffer(gl.ARRAY_BUFFER, this.buf);
       gl.bufferData(gl.ARRAY_BUFFER, pos, gl.STATIC_DRAW);
+      this.hasRgb = !!(rgb && rgb.length === n * 3);
+      if (this.hasRgb) { gl.bindBuffer(gl.ARRAY_BUFFER, this.cbuf); gl.bufferData(gl.ARRAY_BUFFER, rgb, gl.STATIC_DRAW); }
+      else if (this.colorMode === 3) this.colorMode = 0;
       this.fit();
     }
     clear() { this.n = 0; this.bbox = null; this.render(); }
@@ -216,7 +222,7 @@
     setSize(s) { this.size = s; this.render(); }
     setBands(b) { this.bands = b || []; this.render(); }
     setLines(l) { this.lines = l || []; this.render(); }
-    setAxes(on) { this.showAxes = !!on; this.hoverPt = null; this.render(); }
+    setAxes(on) { this.showAxes = !!on; this.render(); }
     // coordinate di griglia: locali ruotate sull'angolo dei muri (X a destra, Y in alto in pianta)
     _G(p) { const c = Math.cos(this.angle), s = Math.sin(this.angle); return [p[0] * c + p[1] * s, -p[0] * s + p[1] * c, p[2]]; }
     _Gi(X, Y, z) { const c = Math.cos(this.angle), s = Math.sin(this.angle); return [X * c - Y * s, X * s + Y * c, z]; }
@@ -274,7 +280,6 @@
         const r = cv.getBoundingClientRect();
         if (this.draw) { this._drawMove(e.clientX - r.left, e.clientY - r.top, e.shiftKey); }
         if (this.edit) { this._editMove(e.clientX - r.left, e.clientY - r.top, e.shiftKey); return; }
-        if (this.showAxes && !drag) this._schedulePick(e.clientX - r.left, e.clientY - r.top);
         if (!drag && !this.draw) {
           const h = this._hit(e.clientX - r.left, e.clientY - r.top);
           cv.style.cursor = h ? (h.part === "body" ? "move" : "crosshair") : "";
@@ -294,7 +299,6 @@
         drag = null;
         if (this.edit) { const l = this.edit.line; this.edit = null; this.onEdit && this.onEdit(l, true); this.render(); }
       };
-      cv.addEventListener("pointerleave", () => { if (this.hoverPt) { this.hoverPt = null; this.render(); } });
       cv.addEventListener("pointerup", end); cv.addEventListener("pointercancel", end);
       cv.addEventListener("wheel", (e) => {
         e.preventDefault();
@@ -343,32 +347,6 @@
       const cp = Math.cos(c.pitch), sp = Math.sin(c.pitch);
       const up = [f[0] * sp, f[1] * sp, cp];
       for (let i = 0; i < 3; i++) c.t[i] += (-dx * right[i] + dy * up[i]) * s;
-    }
-
-    // -------------------------------------------------------------- coordinate sotto il mouse
-    _schedulePick(px, py) {
-      this._pickAt = [px, py];
-      if (this._pickRaf) return;
-      this._pickRaf = requestAnimationFrame(() => { this._pickRaf = null; this._pick(...this._pickAt); });
-    }
-    _pick(px, py) {
-      const mx = this._mx; if (!mx || !this.pos) return;
-      const { VP: m, W, H } = mx, pos = this.pos, n = this.n, R = 9, R2 = R * R, persp = this.mode === "3d";
-      let best = -1, bs = Infinity;
-      for (let i = 0, j = 0; i < n; i++, j += 3) {
-        const x = pos[j], y = pos[j + 1], z = pos[j + 2];
-        const w = m[3] * x + m[7] * y + m[11] * z + m[15];
-        if (w <= 0) continue;
-        const sx = ((m[0] * x + m[4] * y + m[8] * z + m[12]) / w + 1) / 2 * W;
-        if (Math.abs(sx - px) > R) continue;
-        const sy = (1 - (m[1] * x + m[5] * y + m[9] * z + m[13]) / w) / 2 * H;
-        const dx = sx - px, dy = sy - py, d2 = dx * dx + dy * dy;
-        if (d2 > R2) continue;
-        const score = persp ? w * 1e3 + d2 * 1e-3 : d2;     // 3D: il punto più vicino a chi guarda; pianta: il più vicino al cursore
-        if (score < bs) { bs = score; best = j; }
-      }
-      this.hoverPt = best >= 0 ? [pos[best], pos[best + 1], pos[best + 2]] : null;
-      this.render();
     }
 
     // -------------------------------------------------------------- modifica linee esistenti
@@ -487,7 +465,7 @@
         gl.uniformMatrix4fv(this.loc.uMVP, false, new Float32Array(this._mx.VP));
         gl.uniform1f(this.loc.uSize, this.size * this.dpr);
         gl.uniform1f(this.loc.uZmin, 0); gl.uniform1f(this.loc.uZmax, this.ext[2]);
-        gl.uniform1i(this.loc.uColor, this.colorMode);
+        gl.uniform1i(this.loc.uColor, this.hasRgb || this.colorMode !== 3 ? this.colorMode : 0);
         const b = new Float32Array(12);
         const bands = this.bands.slice(0, 6);
         bands.forEach((x, i) => { b[i * 2] = x.z0 - this.origin[2]; b[i * 2 + 1] = x.z1 - this.origin[2]; });
@@ -506,6 +484,11 @@
         gl.bindBuffer(gl.ARRAY_BUFFER, this.buf);
         gl.enableVertexAttribArray(this.aPos);
         gl.vertexAttribPointer(this.aPos, 3, gl.FLOAT, false, 0, 0);
+        if (this.hasRgb) {                        // colore reale dei punti (RGB 8 bit)
+          gl.bindBuffer(gl.ARRAY_BUFFER, this.cbuf);
+          gl.enableVertexAttribArray(this.aCol);
+          gl.vertexAttribPointer(this.aCol, 3, gl.UNSIGNED_BYTE, true, 0, 0);
+        } else { gl.disableVertexAttribArray(this.aCol); gl.vertexAttrib3f(this.aCol, 0.5, 0.5, 0.5); }
         gl.drawArrays(gl.POINTS, 0, this.n);
       }
       this._overlay();
@@ -561,7 +544,7 @@
       const txt = (p) => { const G = this._G(p); return `X ${fmt(G[0], 3)}  Y ${fmt(G[1], 3)}  Z ${fmt(p[2] - z, 3)}`; };
       // linee di sezione/prospetto: coordinate degli estremi e scostamento dall'ortogonalità
       for (const l of this.lines) {
-        if (l.active === false) continue;
+        if (l.active === false || !l.editing) continue;          // coordinate solo mentre la linea è in modifica
         const a = this.toLocal([l.p1[0], l.p1[1], 0]), b = this.toLocal([l.p2[0], l.p2[1], 0]);
         const A = this._G(a), B = this._G(b);
         const th = Math.atan2(B[1] - A[1], B[0] - A[0]) * 180 / Math.PI;
@@ -579,15 +562,6 @@
       if (this.draw && this.draw.cur) {
         const q = this.project(this.draw.cur);
         if (q) this._chip(g, txt(this.draw.cur), q[0] + 12, q[1] + 22, "#111");
-      }
-      if (this.hoverPt && !this.draw) {
-        const p = this.hoverPt, q = this.project(p);
-        if (q) {
-          g.strokeStyle = "#111"; g.lineWidth = 1.5; g.beginPath(); g.arc(q[0], q[1], 6, 0, 7); g.stroke();
-          const A = this.toAbs(p);
-          this._chip(g, txt(p), q[0] + 12, q[1] - 6, "#111");
-          this._chip(g, `E ${fmt(A[0], 3)}  N ${fmt(A[1], 3)}  Q ${fmt(A[2], 3)}`, q[0] + 12, q[1] + 12, "#5C5C5C");
-        }
       }
       g.restore();
     }

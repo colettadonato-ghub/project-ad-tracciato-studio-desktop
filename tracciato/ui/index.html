@@ -264,9 +264,12 @@
               <option value="0">Quota · grigi</option>
               <option value="1">Quota · colori</option>
               <option value="2">Uniforme</option>
+              <option value="3" id="optRgb" disabled>Colore reale (RGB)</option>
             </select>
             <input type="range" id="vSize" min="1" max="5" step="0.5" value="2" aria-label="Dimensione punti" title="Dimensione punti">
             <label class="check mini" title="Assi cartesiani X/Y/Z con griglia sul piano 0, coordinate dei punti sotto il mouse e delle linee"><input type="checkbox" id="vAxes">Assi e coordinate</label>
+            <button type="button" class="btn small" id="btnSideL" aria-pressed="true" title="Mostra o nascondi il pannello dei parametri (a sinistra)">Parametri</button>
+            <button type="button" class="btn small" id="btnSideR" aria-pressed="true" title="Mostra o nascondi il pannello di avanzamento e log (a destra)">Avanzamento</button>
             <button type="button" class="btn small" id="vFit" title="Inquadra tutto">Inquadra</button>
           </div>
           <span class="pill idle" id="status">Pronto</span>
