@@ -283,3 +283,5 @@ details.adv .panel-body { padding: 16px 0 0; gap: 16px; }
   .work { grid-template-columns: 340px minmax(0, 1fr); }
   .work > .side-right { grid-column: 1 / -1; min-height: 260px; }
 }
+.check.mini { font-size: 12px; min-height: 0; gap: 6px; white-space: nowrap; }
+.check.mini input { width: 14px; height: 14px; }

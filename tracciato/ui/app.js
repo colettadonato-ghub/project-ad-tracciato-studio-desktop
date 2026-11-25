@@ -106,6 +106,7 @@
   }
   $("vColor").onchange = () => S.viewer && S.viewer.setColor(+$("vColor").value);
   $("vSize").oninput = () => S.viewer && S.viewer.setSize(+$("vSize").value);
+  $("vAxes").onchange = () => S.viewer && S.viewer.setAxes($("vAxes").checked);
   $("vFit").onclick = () => S.viewer && S.viewer.fit();
 
   function tab(which) {

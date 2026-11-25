@@ -10,6 +10,10 @@
  *   viewer.setLevels([{z, label}])               linee di quota (vista laterale)
  *   viewer.startDraw(cb)                         due clic → cb(p1, p2) in coordinate assolute
  *   viewer.onLock = () => {}                     Esc: blocca di nuovo tutte le linee
+ *   viewer.setAxes(true)                         assi cartesiani + griglia sul piano 0, coordinate dei punti (passando
+ *                                                col mouse) e delle linee. Assi X/Y ruotati sui muri (angolo
+ *                                                dell'anteprima), origine al centro del rilievo, Z dal piano 0:
+ *                                                una linea ortogonale ai muri ha Δ 0,00° e stessa X (o Y) agli estremi
  *   viewer.onSelect = (line) => {}              linea scelta con un clic
  *   viewer.onEdit = (line, final) => {}          linee già disegnate, in pianta: trascina un estremo per
  *                                                modificarlo, trascina il tratto per spostarla in
@@ -124,7 +128,7 @@
   const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
   const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
   const norm = (a) => { const l = Math.hypot(...a) || 1; return [a[0] / l, a[1] / l, a[2] / l]; };
-  const fmt = (v, d = 2) => Number(v).toLocaleString("it-IT", { minimumFractionDigits: d, maximumFractionDigits: d });
+  const fmt = (v, d = 2) => (Math.abs(v) < 0.5 * 10 ** -d ? 0 : Number(v)).toLocaleString("it-IT", { minimumFractionDigits: d, maximumFractionDigits: d });
 
   class Viewer {
     constructor(canvas, overlay) {
@@ -172,7 +176,7 @@
       for (let i = 0, j = 0; i < n; i++, j += 3) {
         pos[j] = ox + q[j] * sx; pos[j + 1] = oy + q[j + 1] * sy; pos[j + 2] = q[j + 2] * sz;
       }
-      this.n = n;
+      this.n = n; this.pos = pos;
       this.ext = [x1 - x0, y1 - y0, z1 - z0];
       gl.bindBuffer(gl.ARRAY_BUFFER, this.buf);
       gl.bufferData(gl.ARRAY_BUFFER, pos, gl.STATIC_DRAW);
@@ -212,6 +216,11 @@
     setSize(s) { this.size = s; this.render(); }
     setBands(b) { this.bands = b || []; this.render(); }
     setLines(l) { this.lines = l || []; this.render(); }
+    setAxes(on) { this.showAxes = !!on; this.hoverPt = null; this.render(); }
+    // coordinate di griglia: locali ruotate sull'angolo dei muri (X a destra, Y in alto in pianta)
+    _G(p) { const c = Math.cos(this.angle), s = Math.sin(this.angle); return [p[0] * c + p[1] * s, -p[0] * s + p[1] * c, p[2]]; }
+    _Gi(X, Y, z) { const c = Math.cos(this.angle), s = Math.sin(this.angle); return [X * c - Y * s, X * s + Y * c, z]; }
+    _z0() { return this.levelZ ?? 0; }
     setLevels(l) { this.levels = l || []; this.render(); }
     setPlaneZ(zAbs) { if (this.origin) { this.levelZ = zAbs - this.origin[2]; this.render(); } }
 
@@ -265,6 +274,7 @@
         const r = cv.getBoundingClientRect();
         if (this.draw) { this._drawMove(e.clientX - r.left, e.clientY - r.top, e.shiftKey); }
         if (this.edit) { this._editMove(e.clientX - r.left, e.clientY - r.top, e.shiftKey); return; }
+        if (this.showAxes && !drag) this._schedulePick(e.clientX - r.left, e.clientY - r.top);
         if (!drag && !this.draw) {
           const h = this._hit(e.clientX - r.left, e.clientY - r.top);
           cv.style.cursor = h ? (h.part === "body" ? "move" : "crosshair") : "";
@@ -284,6 +294,7 @@
         drag = null;
         if (this.edit) { const l = this.edit.line; this.edit = null; this.onEdit && this.onEdit(l, true); this.render(); }
       };
+      cv.addEventListener("pointerleave", () => { if (this.hoverPt) { this.hoverPt = null; this.render(); } });
       cv.addEventListener("pointerup", end); cv.addEventListener("pointercancel", end);
       cv.addEventListener("wheel", (e) => {
         e.preventDefault();
@@ -332,6 +343,32 @@
       const cp = Math.cos(c.pitch), sp = Math.sin(c.pitch);
       const up = [f[0] * sp, f[1] * sp, cp];
       for (let i = 0; i < 3; i++) c.t[i] += (-dx * right[i] + dy * up[i]) * s;
+    }
+
+    // -------------------------------------------------------------- coordinate sotto il mouse
+    _schedulePick(px, py) {
+      this._pickAt = [px, py];
+      if (this._pickRaf) return;
+      this._pickRaf = requestAnimationFrame(() => { this._pickRaf = null; this._pick(...this._pickAt); });
+    }
+    _pick(px, py) {
+      const mx = this._mx; if (!mx || !this.pos) return;
+      const { VP: m, W, H } = mx, pos = this.pos, n = this.n, R = 9, R2 = R * R, persp = this.mode === "3d";
+      let best = -1, bs = Infinity;
+      for (let i = 0, j = 0; i < n; i++, j += 3) {
+        const x = pos[j], y = pos[j + 1], z = pos[j + 2];
+        const w = m[3] * x + m[7] * y + m[11] * z + m[15];
+        if (w <= 0) continue;
+        const sx = ((m[0] * x + m[4] * y + m[8] * z + m[12]) / w + 1) / 2 * W;
+        if (Math.abs(sx - px) > R) continue;
+        const sy = (1 - (m[1] * x + m[5] * y + m[9] * z + m[13]) / w) / 2 * H;
+        const dx = sx - px, dy = sy - py, d2 = dx * dx + dy * dy;
+        if (d2 > R2) continue;
+        const score = persp ? w * 1e3 + d2 * 1e-3 : d2;     // 3D: il punto più vicino a chi guarda; pianta: il più vicino al cursore
+        if (score < bs) { bs = score; best = j; }
+      }
+      this.hoverPt = best >= 0 ? [pos[best], pos[best + 1], pos[best + 2]] : null;
+      this.render();
     }
 
     // -------------------------------------------------------------- modifica linee esistenti
@@ -482,6 +519,79 @@
       return { p1, p2, u, n, L, dmin, dmax };
     }
 
+    _chip(g, txt, x, y, col = "#111", align = "left") {
+      const tw = g.measureText(txt).width + 8, W = this.cv.clientWidth, H = this.cv.clientHeight;
+      let bx = align === "right" ? x - tw : x;
+      bx = Math.max(2, Math.min(W - tw - 2, bx)); y = Math.max(14, Math.min(H - 4, y));
+      g.fillStyle = "rgba(255,255,255,.92)"; g.fillRect(bx, y - 12, tw, 16);
+      g.strokeStyle = col; g.lineWidth = 1; g.strokeRect(bx + .5, y - 11.5, tw - 1, 15);
+      g.fillStyle = col; g.fillText(txt, bx + 4, y);
+    }
+    _overlayAxes(g) {
+      const z = this._z0(), ext = this.ext, W = this.cv.clientWidth;
+      if (this.mode === "side") return;
+      const P = (X, Y, zz = z) => this.project(this._Gi(X, Y, zz));
+      // estensione in coordinate di griglia
+      const cs = [[-ext[0] / 2, -ext[1] / 2], [ext[0] / 2, -ext[1] / 2], [ext[0] / 2, ext[1] / 2], [-ext[0] / 2, ext[1] / 2]].map((c) => this._G([c[0], c[1], 0]));
+      const x0 = Math.min(...cs.map((c) => c[0])), x1 = Math.max(...cs.map((c) => c[0]));
+      const y0 = Math.min(...cs.map((c) => c[1])), y1 = Math.max(...cs.map((c) => c[1]));
+      const span = Math.max(x1 - x0, y1 - y0);
+      let step = 1; for (const s of [0.5, 1, 2, 5, 10, 20, 50]) { step = s; if (span / s <= 14) break; }
+      const gx0 = Math.floor(x0 / step) * step, gx1 = Math.ceil(x1 / step) * step;
+      const gy0 = Math.floor(y0 / step) * step, gy1 = Math.ceil(y1 / step) * step;
+      g.save(); g.font = "10px 'JetBrains Mono', Consolas, monospace";
+      // griglia sul piano 0
+      g.lineWidth = 1; g.strokeStyle = "rgba(60,60,60,.22)";
+      const seg = (a, b) => { if (a && b) { g.beginPath(); g.moveTo(...a); g.lineTo(...b); g.stroke(); } };
+      for (let X = gx0; X <= gx1 + 1e-9; X += step) if (Math.abs(X) > 1e-9) seg(P(X, gy0), P(X, gy1));
+      for (let Y = gy0; Y <= gy1 + 1e-9; Y += step) if (Math.abs(Y) > 1e-9) seg(P(gx0, Y), P(gx1, Y));
+      // assi X (rosso), Y (verde), Z (blu) dall'origine
+      const ax = (a, b, col, lab) => {
+        if (!a || !b) return; g.strokeStyle = col; g.lineWidth = 2; seg(a, b);
+        g.fillStyle = col; g.font = "700 12px Inter, sans-serif"; g.fillText(lab, b[0] + 5, b[1] - 5); g.font = "10px 'JetBrains Mono', Consolas, monospace";
+      };
+      ax(P(gx0, 0), P(gx1, 0), "#C0392B", "X"); ax(P(0, gy0), P(0, gy1), "#2E8B57", "Y");
+      ax(P(0, 0), P(0, 0, z + Math.max(ext[2], 1)), "#1F4FA3", "Z");
+      // graduazione sugli assi
+      g.fillStyle = "#333";
+      for (let X = gx0; X <= gx1 + 1e-9; X += step) if (Math.abs(X) > 1e-9) { const q = P(X, 0); if (q) g.fillText(fmt(X, step < 1 ? 1 : 0), q[0] - 8, q[1] + 13); }
+      for (let Y = gy0; Y <= gy1 + 1e-9; Y += step) if (Math.abs(Y) > 1e-9) { const q = P(0, Y); if (q) g.fillText(fmt(Y, step < 1 ? 1 : 0), q[0] + 5, q[1] + 4); }
+      const o = P(0, 0); if (o) { g.fillStyle = "#111"; g.beginPath(); g.arc(o[0], o[1], 3, 0, 7); g.fill(); g.fillText("0", o[0] + 5, o[1] + 13); }
+      // coordinate di un punto (griglia relative al centro del rilievo, Z dal piano 0)
+      const txt = (p) => { const G = this._G(p); return `X ${fmt(G[0], 3)}  Y ${fmt(G[1], 3)}  Z ${fmt(p[2] - z, 3)}`; };
+      // linee di sezione/prospetto: coordinate degli estremi e scostamento dall'ortogonalità
+      for (const l of this.lines) {
+        if (l.active === false) continue;
+        const a = this.toLocal([l.p1[0], l.p1[1], 0]), b = this.toLocal([l.p2[0], l.p2[1], 0]);
+        const A = this._G(a), B = this._G(b);
+        const th = Math.atan2(B[1] - A[1], B[0] - A[0]) * 180 / Math.PI;
+        let dev = th - Math.round(th / 90) * 90;
+        if (Math.abs(dev) < 0.005) dev = 0;
+        const par = Math.abs(Math.round(th / 90)) % 2 === 0 ? "X" : "Y";
+        const col = Math.abs(dev) < 0.05 ? "#2E8B57" : "#B45309";
+        const pa = this.project([a[0], a[1], z]), pb = this.project([b[0], b[1], z]);
+        if (!pa || !pb) continue;
+        this._chip(g, `${l.label}1 ${fmt(A[0], 3)} ; ${fmt(A[1], 3)}`, pa[0] + 8, pa[1] - 8, col);
+        this._chip(g, `${l.label}2 ${fmt(B[0], 3)} ; ${fmt(B[1], 3)}`, pb[0] + 8, pb[1] - 8, col);
+        this._chip(g, `${l.label}: ∥ ${par} · Δ ${dev >= 0 ? "+" : "−"}${fmt(Math.abs(dev), 2)}° dall'ortogonale`, (pa[0] + pb[0]) / 2, (pa[1] + pb[1]) / 2 + 20, col, "right");
+      }
+      // cursore durante il disegno e punto sotto il mouse
+      if (this.draw && this.draw.cur) {
+        const q = this.project(this.draw.cur);
+        if (q) this._chip(g, txt(this.draw.cur), q[0] + 12, q[1] + 22, "#111");
+      }
+      if (this.hoverPt && !this.draw) {
+        const p = this.hoverPt, q = this.project(p);
+        if (q) {
+          g.strokeStyle = "#111"; g.lineWidth = 1.5; g.beginPath(); g.arc(q[0], q[1], 6, 0, 7); g.stroke();
+          const A = this.toAbs(p);
+          this._chip(g, txt(p), q[0] + 12, q[1] - 6, "#111");
+          this._chip(g, `E ${fmt(A[0], 3)}  N ${fmt(A[1], 3)}  Q ${fmt(A[2], 3)}`, q[0] + 12, q[1] + 12, "#5C5C5C");
+        }
+      }
+      g.restore();
+    }
+
     _overlay() {
       const g = this.ctx, dpr = this.dpr || 1;
       g.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -544,6 +654,7 @@
         lab(a, 0); lab(b, f.L);
         g.globalAlpha = 1;
       }
+      if (this.showAxes) this._overlayAxes(g);
       // linea in costruzione
       if (this.draw) {
         g.fillStyle = "#111"; g.strokeStyle = "#111"; g.lineWidth = 1.5;
