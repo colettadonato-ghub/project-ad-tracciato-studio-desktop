@@ -14,6 +14,8 @@
  *                                                solo mentre sono in modifica. Assi X/Y ruotati sui muri (angolo
  *                                                dell'anteprima), origine al centro del rilievo, Z dal piano 0:
  *                                                una linea ortogonale ai muri ha Δ 0,00° e stessa X (o Y) agli estremi
+ *   viewer.setGridOrigin(E, N) · resetGridOrigin() · gridOrigin() · pickOrigin(cb)   origine degli assi (assoluta)
+ *   viewer.lineGrid(l) · setLineGrid(l, x1, y1, x2, y2)   estremi di una linea in coordinate di griglia (numeriche)
  *   viewer.onSelect = (line) => {}              linea scelta con un clic
  *   viewer.onEdit = (line, final) => {}          linee già disegnate, in pianta: trascina un estremo per
  *                                                modificarlo, trascina il tratto per spostarla in
@@ -159,7 +161,7 @@
       this.n = 0;
       this.mode = "3d"; this.colorMode = 0; this.size = 2;
       this.cam = { t: [0, 0, 0], yaw: -2.2, pitch: 0.55, dist: 30, half: 10 };
-      this.bands = []; this.lines = []; this.levels = []; this.draw = null; this.hover = null;
+      this.go = [0, 0]; this.bands = []; this.lines = []; this.levels = []; this.draw = null; this.hover = null;
       this.angle = 0;
       this._bind();
       new ResizeObserver(() => this.resize()).observe(canvas.parentElement);
@@ -179,7 +181,7 @@
       for (let i = 0, j = 0; i < n; i++, j += 3) {
         pos[j] = ox + q[j] * sx; pos[j + 1] = oy + q[j + 1] * sy; pos[j + 2] = q[j + 2] * sz;
       }
-      this.n = n;
+      this.n = n; this.go = [0, 0];
       this.ext = [x1 - x0, y1 - y0, z1 - z0];
       gl.bindBuffer(gl.ARRAY_BUFFER, this.buf);
       gl.bufferData(gl.ARRAY_BUFFER, pos, gl.STATIC_DRAW);
@@ -224,8 +226,30 @@
     setLines(l) { this.lines = l || []; this.render(); }
     setAxes(on) { this.showAxes = !!on; this.render(); }
     // coordinate di griglia: locali ruotate sull'angolo dei muri (X a destra, Y in alto in pianta)
-    _G(p) { const c = Math.cos(this.angle), s = Math.sin(this.angle); return [p[0] * c + p[1] * s, -p[0] * s + p[1] * c, p[2]]; }
-    _Gi(X, Y, z) { const c = Math.cos(this.angle), s = Math.sin(this.angle); return [X * c - Y * s, X * s + Y * c, z]; }
+    _G(p) {
+      const c = Math.cos(this.angle), s = Math.sin(this.angle), x = p[0] - this.go[0], y = p[1] - this.go[1];
+      return [x * c + y * s, -x * s + y * c, p[2]];
+    }
+    _Gi(X, Y, z) { const c = Math.cos(this.angle), s = Math.sin(this.angle); return [X * c - Y * s + this.go[0], X * s + Y * c + this.go[1], z]; }
+    // origine degli assi (E, N assoluti): di default il centro del rilievo; la quota 0 è il piano 0 (setPlaneZ)
+    setGridOrigin(E, N) { if (!this.origin || !isFinite(E) || !isFinite(N)) return; this.go = [E - this.origin[0], N - this.origin[1]]; this.render(); }
+    resetGridOrigin() { this.go = [0, 0]; this.render(); }
+    gridOrigin() { return this.origin ? [this.go[0] + this.origin[0], this.go[1] + this.origin[1]] : [0, 0]; }
+    lineGrid(l) {      // estremi della linea in coordinate di griglia (relative all'origine, sui muri)
+      const a = this._G(this.toLocal([l.p1[0], l.p1[1], 0])), b = this._G(this.toLocal([l.p2[0], l.p2[1], 0]));
+      return { x1: a[0], y1: a[1], x2: b[0], y2: b[1] };
+    }
+    setLineGrid(l, x1, y1, x2, y2) {
+      if (Math.hypot(x2 - x1, y2 - y1) < 0.3) return false;      // lunghezza minima 30 cm
+      const a = this.toAbs(this._Gi(x1, y1, 0)), b = this.toAbs(this._Gi(x2, y2, 0));
+      l.p1 = [a[0], a[1]]; l.p2 = [b[0], b[1]]; this.render(); return true;
+    }
+    // clic sulla nuvola per fissare l'origine degli assi
+    pickOrigin(cb) {
+      if (this.mode === "side") this.setMode("top");
+      this.pickO = { cb }; this.ov.classList.add("drawing");
+    }
+    cancelPick() { const d = this.pickO; this.pickO = null; this.ov.classList.remove("drawing"); if (d && d.cb) d.cb(null); }
     _z0() { return this.levelZ ?? 0; }
     setLevels(l) { this.levels = l || []; this.render(); }
     setPlaneZ(zAbs) { if (this.origin) { this.levelZ = zAbs - this.origin[2]; this.render(); } }
@@ -268,7 +292,7 @@
       let drag = null;
       cv.addEventListener("contextmenu", (e) => e.preventDefault());
       cv.addEventListener("pointerdown", (e) => {
-        if (this.draw && e.button === 0) return;   // in disegno il clic sinistro piazza i punti
+        if ((this.draw || this.pickO) && e.button === 0) return;   // in disegno il clic sinistro piazza i punti
         if (e.button === 0 && !e.altKey) {
           const r = cv.getBoundingClientRect(), h = this._hit(e.clientX - r.left, e.clientY - r.top);
           if (h) { cv.setPointerCapture(e.pointerId); this._editStart(h, e.clientX - r.left, e.clientY - r.top); return; }
@@ -315,11 +339,17 @@
         this.render();
       }, { passive: false });
       cv.addEventListener("click", (e) => {
+        if (this.pickO) {
+          const r0 = cv.getBoundingClientRect(), pl = this.unprojectToZ(e.clientX - r0.left, e.clientY - r0.top, this._z0());
+          if (pl) { const a = this.toAbs(pl), d = this.pickO; this.pickO = null; cv.classList.remove("drawing"); d.cb([a[0], a[1]]); this.render(); }
+          return;
+        }
         if (!this.draw) return;
         const r = cv.getBoundingClientRect();
         this._drawClick(e.clientX - r.left, e.clientY - r.top, e.shiftKey);
       });
       window.addEventListener("keydown", (e) => {
+        if (e.key === "Escape" && this.pickO) { this.cancelPick(); return; }
         if (e.key === "Escape" && this.draw) this.cancelDraw();
         if (e.key === "Escape" && !this.draw && this.lines.some((x) => x.editing)) { this.onLock && this.onLock(); return; }
         const l = this.lines.find((x) => x.selected && x.editing && x.active !== false);

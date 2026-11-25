@@ -81,6 +81,8 @@
       S.viewer.onLock = () => { lockAll(); };
       S.viewer.onEdit = (l, final) => {
         const row = document.querySelector(`.line-row[data-id="${l.id}"] .lmeta`);
+        const g = S.viewer.lineGrid(l);
+        document.querySelectorAll(`.line-row[data-id="${l.id}"] [data-g]`).forEach((i) => { i.value = (Math.abs(g[i.dataset.g]) < 5e-4 ? 0 : g[i.dataset.g]).toFixed(3); });
         if (row) row.textContent = `${l.kind === "sezione" ? "Sezione" : "Prospetto"} · ${fmtNum(lineLen(l))} m`;
         if (final) { renderLines(); updateViewer(); }
       };
@@ -106,7 +108,27 @@
   }
   $("vColor").onchange = () => S.viewer && S.viewer.setColor(+$("vColor").value);
   $("vSize").oninput = () => S.viewer && S.viewer.setSize(+$("vSize").value);
-  $("vAxes").onchange = () => S.viewer && S.viewer.setAxes($("vAxes").checked);
+  $("vAxes").onchange = () => { S.viewer && S.viewer.setAxes($("vAxes").checked); $("axesPanel").hidden = !$("vAxes").checked; syncAxesPanel(); };
+  // origine degli assi e quota 0: valori numerici precisi, oppure clic sulla nuvola
+  function syncAxesPanel() {
+    if (!S.viewer || !S.viewer.origin) return;
+    const o = S.viewer.gridOrigin();
+    for (const [id, v] of [["oE", o[0]], ["oN", o[1]], ["oZ", S.z0]]) if (document.activeElement !== $(id)) $(id).value = v.toFixed(3);
+  }
+  function onOriginChange() {
+    S.viewer.setGridOrigin(num($("oE").value, 0), num($("oN").value, 0));
+    renderLines();
+  }
+  $("oE").addEventListener("change", onOriginChange); $("oN").addEventListener("change", onOriginChange);
+  $("btnOriginReset").onclick = () => { S.viewer.resetGridOrigin(); syncAxesPanel(); renderLines(); };
+  $("btnOriginPick").onclick = () => {
+    if (!S.viewer || !S.prev) return;
+    $("vHint").textContent = "Clicca sulla nuvola il punto da usare come origine degli assi (Esc annulla)"; $("vHint").classList.add("active");
+    S.viewer.pickOrigin((p) => { $("vHint").classList.remove("active"); hintDefault(); if (p) { S.viewer.setGridOrigin(p[0], p[1]); syncAxesPanel(); renderLines(); } });
+  };
+  function setZ0(z) { S.z0 = z; $("pZ0").value = z.toFixed(3); z0Rel(); updateViewer(); }
+  $("oZ").addEventListener("change", () => setZ0(num($("oZ").value, S.z0)));
+  $("btnZLow").onclick = () => { if (S.prev) setZ0(S.prev.bbox[2]); };
   // pannelli laterali apribili/chiudibili per allargare l'area di lavoro (la scelta resta nel browser)
   function setPanels(left, right) {
     const w = document.querySelector(".work"); if (!w) return;
@@ -134,7 +156,7 @@
   // evidenziazioni nella nuvola: cosa verrà tagliato con i parametri attuali
   function updateViewer() {
     const v = S.viewer; if (!v || !S.prev) return;
-    v.setPlaneZ(S.z0);
+    v.setPlaneZ(S.z0); syncAxesPanel();
     const showParams = S.step >= 3 && S.mode;
     const bands = [], levels = [{ z: S.z0, label: "±0,00 piano 0", color: "#111" }];
     if (showParams) {
@@ -243,7 +265,7 @@
     if (!S.outDir) $("outDir").textContent = info.default_output || dirOf(prev.path) + "\\Tracciato";
 
     // proposte
-    S.z0 = sug.z0;
+    S.z0 = sug.z0; setTimeout(syncAxesPanel, 0);
     S.levels = (sug.levels || [0]).map((z, i) => ({ name: i === 0 ? "Piano terra" : `Livello ${i}`, z, cut: 1.1, t: 0.1 }));
     S.lines = [];
     (g.fronts || []).forEach((f) => S.lines.push(mkLine(f, true)));
@@ -366,6 +388,7 @@
             aria-label="${l.editing ? "Blocca" : "Modifica"}">${l.editing ? "🔒" : "✎"}</button>
           <button type="button" class="icon-btn" data-act="flip" title="Inverti il verso di vista" aria-label="Inverti verso">⇄</button>
           <button type="button" class="icon-btn" data-act="del" title="Elimina" aria-label="Elimina">×</button>
+          ${gridInputs(l)}
           <div class="lparams">
             <span class="mini-f">sposta
               <button type="button" class="icon-btn" data-act="nudge-" ${l.editing ? "" : "disabled"} title="Sposta di 10 cm all'indietro (ortogonale alla linea, contro la freccia di vista)" aria-label="Sposta indietro">↓</button>
@@ -417,10 +440,26 @@
       b.textContent = on ? "Blocca " + (b.dataset.editall === "sezione" ? "tutte" : "tutti") : "Modifica " + (b.dataset.editall === "sezione" ? "tutte" : "tutti");
     });
   }
+  // coordinate precise degli estremi (solo con la linea sbloccata): X;Y di griglia, relative all'origine degli assi
+  function gridInputs(l) {
+    if (!l.editing || !S.viewer || !S.viewer.origin) return "";
+    const g = S.viewer.lineGrid(l), f = (v) => (Math.abs(v) < 5e-4 ? 0 : v).toFixed(3);
+    return `<div class="gcoords" title="Coordinate degli estremi rispetto all'origine degli assi (assi sui muri)">
+      ${[["x1", "X1", g.x1], ["y1", "Y1", g.y1], ["x2", "X2", g.x2], ["y2", "Y2", g.y2]].map(([k, n, v]) =>
+        `<label class="mini-f">${n}<input class="input mono" data-g="${k}" type="number" step="0.001" value="${f(v)}"></label>`).join("")}</div>`;
+  }
   function lineOf(e) { const r = e.target.closest(".line-row"); return r && S.lines.find((l) => l.id === +r.dataset.id); }
   for (const id of ["linesSezione", "linesProspetto"]) {
     const box = $(id);
+    box.addEventListener("change", (e) => {
+      if (!e.target.dataset.g) return;
+      const l = lineOf(e); if (!l) return;
+      const v = {}; e.target.closest(".gcoords").querySelectorAll("[data-g]").forEach((i) => (v[i.dataset.g] = num(i.value, 0)));
+      if (!S.viewer.setLineGrid(l, v.x1, v.y1, v.x2, v.y2)) toast("La linea deve essere lunga almeno 30 cm", true);
+      renderLines(); updateViewer();
+    });
     box.addEventListener("input", (e) => {
+      if (e.target.dataset.g) return;
       const l = lineOf(e); if (!l) return;
       const k = e.target.dataset.k;
       if (k === "active") { l.active = e.target.checked; e.target.closest(".line-row").classList.toggle("off", !l.active); }

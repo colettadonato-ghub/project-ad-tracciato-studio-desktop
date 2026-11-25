@@ -290,6 +290,19 @@
             <div class="label" id="runningLabel">ELABORAZIONE IN CORSO</div>
             <div class="scan"></div>
           </div>
+          <div class="axes-panel" id="axesPanel" hidden>
+            <div class="ap-title">Assi cartesiani</div>
+            <div class="ap-row"><span>Origine</span>
+              <label>E <input class="input mono" id="oE" type="number" step="0.001" aria-label="Origine E (assoluta)"></label>
+              <label>N <input class="input mono" id="oN" type="number" step="0.001" aria-label="Origine N (assoluta)"></label></div>
+            <div class="ap-row"><span></span>
+              <button type="button" class="btn small" id="btnOriginPick" title="Clicca sulla nuvola il punto da usare come origine degli assi">Scegli sulla nuvola</button>
+              <button type="button" class="btn small" id="btnOriginReset" title="Origine al centro del rilievo">Centro</button></div>
+            <div class="ap-row"><span>Quota 0</span>
+              <label>Z <input class="input mono" id="oZ" type="number" step="0.001" aria-label="Quota assoluta dello zero (piano 0)"></label>
+              <button type="button" class="btn small" id="btnZLow" title="Quota 0 al punto più basso della nuvola">Punto più basso</button></div>
+            <div class="ap-note">Coordinate X;Y relative all'origine, con assi sui muri. La quota 0 è il piano 0 di tutti gli elaborati.</div>
+          </div>
           <div class="vhint" id="vHint">Trascina per ruotare · tasto destro o Maiusc per spostare · rotella per lo zoom</div>
         </div>
         <div class="sheets" id="sheetsBox" hidden>

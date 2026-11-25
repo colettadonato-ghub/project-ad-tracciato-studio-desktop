@@ -292,5 +292,15 @@ details.adv .panel-body { padding: 16px 0 0; gap: 16px; }
   .work { grid-template-columns: 340px minmax(0, 1fr); }
   .work > .side-right { grid-column: 1 / -1; min-height: 260px; }
 }
+.axes-panel { position: absolute; left: 12px; top: 12px; z-index: 5; width: 300px; background: rgba(255,255,255,.96);
+  border: 1px solid var(--inchiostro); padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+.ap-title { font: 600 11px var(--mono); letter-spacing: 1.2px; text-transform: uppercase; color: var(--matita); }
+.ap-row { display: grid; grid-template-columns: 56px 1fr 1fr; gap: 6px; align-items: center; font: 11px var(--mono); }
+.ap-row label { display: flex; align-items: center; gap: 4px; }
+.ap-row .input { width: 100%; min-width: 0; height: 30px; padding: 0 6px; }
+.ap-note { font: 11px/1.4 var(--sans, sans-serif); color: var(--matita); }
+.gcoords { grid-column: 2 / -1; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.gcoords .mini-f { flex-direction: column; align-items: stretch; gap: 2px; }
+.gcoords .mini-f .input { width: 100%; }
 .check.mini { font-size: 12px; min-height: 0; gap: 6px; white-space: nowrap; }
 .check.mini input { width: 14px; height: 14px; }
