@@ -78,6 +78,7 @@
       if (S.viewer.failed) throw new Error("WebGL non disponibile");
       // linee già disegnate: trascinate nella vista in pianta (estremi liberi, tratto in ortogonale)
       S.viewer.onSelect = (l) => selectLine(l);
+      S.viewer.onLock = () => { lockAll(); };
       S.viewer.onEdit = (l, final) => {
         const row = document.querySelector(`.line-row[data-id="${l.id}"] .lmeta`);
         if (row) row.textContent = `${l.kind === "sezione" ? "Sezione" : "Prospetto"} · ${fmtNum(lineLen(l))} m`;
@@ -327,21 +328,24 @@
 
   // linee di sezione / prospetto
   function lineLen(l) { return Math.hypot(l.p2[0] - l.p1[0], l.p2[1] - l.p1[1]); }
-  function renderLines() {
+  function renderLines() { renderLinesRaw(); syncEditAll(); }
+  function renderLinesRaw() {
     for (const kind of ["prospetto", "sezione"]) {
       const box = $(kind === "sezione" ? "linesSezione" : "linesProspetto");
       const ls = S.lines.filter((l) => l.kind === kind);
-      box.innerHTML = ls.length ? ls.map((l) => `<div class="line-row${l.active ? "" : " off"}${l.selected ? " sel" : ""}" data-id="${l.id}">
+      box.innerHTML = ls.length ? ls.map((l) => `<div class="line-row${l.active ? "" : " off"}${l.editing ? " sel" : ""}" data-id="${l.id}">
           <input type="checkbox" data-k="active" ${l.active ? "checked" : ""} aria-label="Includi ${esc(l.label)}">
           <input class="input badge-in ${kind}" data-k="label" value="${esc(l.label)}" maxlength="4" aria-label="Nome">
           <span class="lmeta">${kind === "sezione" ? "Sezione" : "Prospetto"} · ${fmtNum(lineLen(l))} m</span>
-          <button type="button" class="icon-btn" data-act="edit" title="Modifica nella pianta: trascina gli estremi, o il tratto per spostarla (frecce ↑↓ = 10 cm)" aria-label="Modifica">✎</button>
+          <button type="button" class="icon-btn${l.editing ? " on" : ""}" data-act="edit" aria-pressed="${!!l.editing}"
+            title="${l.editing ? "In modifica: clic per bloccarla di nuovo" : "Sblocca per modificarla nella pianta: trascina gli estremi, o il tratto per spostarla (frecce ↑↓ = 10 cm)"}"
+            aria-label="${l.editing ? "Blocca" : "Modifica"}">${l.editing ? "🔒" : "✎"}</button>
           <button type="button" class="icon-btn" data-act="flip" title="Inverti il verso di vista" aria-label="Inverti verso">⇄</button>
           <button type="button" class="icon-btn" data-act="del" title="Elimina" aria-label="Elimina">×</button>
           <div class="lparams">
             <span class="mini-f">sposta
-              <button type="button" class="icon-btn" data-act="nudge-" title="Sposta di 10 cm all'indietro (ortogonale alla linea, contro la freccia di vista)" aria-label="Sposta indietro">↓</button>
-              <button type="button" class="icon-btn" data-act="nudge+" title="Sposta di 10 cm in avanti (ortogonale alla linea, verso la freccia di vista)" aria-label="Sposta avanti">↑</button></span>
+              <button type="button" class="icon-btn" data-act="nudge-" ${l.editing ? "" : "disabled"} title="Sposta di 10 cm all'indietro (ortogonale alla linea, contro la freccia di vista)" aria-label="Sposta indietro">↓</button>
+              <button type="button" class="icon-btn" data-act="nudge+" ${l.editing ? "" : "disabled"} title="Sposta di 10 cm in avanti (ortogonale alla linea, verso la freccia di vista)" aria-label="Sposta avanti">↑</button></span>
             <label class="mini-f">${kind === "sezione" ? "spessore m" : "profondità m"}
               <input class="input mono" data-k="t" type="number" step="${kind === "sezione" ? 0.01 : 0.5}" value="${l.t}"></label>
             ${kind === "sezione" ? `<label class="mini-f">oltre m
@@ -350,6 +354,26 @@
         </div>`).join("") : `<div class="muted small-note">${kind === "sezione" ? "Nessuna sezione: premi “Disegna” e fai due clic sulla nuvola." : "Nessun prospetto."}</div>`;
     }
   }
+  // blocco/sblocco: di default le linee sono bloccate; ✎ sblocca solo quella scelta, "Modifica tutte" un gruppo
+  function setEditing(lines) {
+    S.lines.forEach((x) => { x.editing = lines.includes(x); if (!x.editing) x.selected = false; });
+  }
+  function toggleEdit(l) {
+    if (l.editing) { l.editing = false; l.selected = false; renderLines(); hintDefault(); S.viewer && S.viewer.render(); return; }
+    setEditing([l]);                                      // solo questa: le altre tornano bloccate
+    selectLine(l, true);
+  }
+  function lockAll() { setEditing([]); renderLines(); hintDefault(); $("vHint").classList.remove("active"); S.viewer && S.viewer.render(); }
+  document.querySelectorAll("[data-editall]").forEach((b) => b.addEventListener("click", () => {
+    const ls = S.lines.filter((l) => l.kind === b.dataset.editall && l.active);
+    if (!ls.length) return;
+    if (ls.every((l) => l.editing)) { lockAll(); return; }
+    setEditing(ls);
+    tab("cloud"); if (S.viewer && S.viewer.mode !== "top") setViewMode("top");
+    $("vHint").textContent = "Tutte le linee del gruppo sono sbloccate: trascina un estremo o il tratto · Esc o 🔒 per bloccarle";
+    $("vHint").classList.add("active");
+    renderLines(); S.viewer && S.viewer.render();
+  }));
   // seleziona una linea: la vista passa in pianta, così si può trascinarla (estremi liberi, tratto in ortogonale)
   function selectLine(l, goTop) {
     S.lines.forEach((x) => (x.selected = x === l));
@@ -360,6 +384,14 @@
       $("vHint").classList.add("active");
     }
     renderLines(); S.viewer && S.viewer.render();
+  }
+  function syncEditAll() {
+    document.querySelectorAll("[data-editall]").forEach((b) => {
+      const ls = S.lines.filter((l) => l.kind === b.dataset.editall && l.active);
+      const on = ls.length > 0 && ls.every((l) => l.editing);
+      b.setAttribute("aria-pressed", on);
+      b.textContent = on ? "Blocca " + (b.dataset.editall === "sezione" ? "tutte" : "tutti") : "Modifica " + (b.dataset.editall === "sezione" ? "tutte" : "tutti");
+    });
   }
   function lineOf(e) { const r = e.target.closest(".line-row"); return r && S.lines.find((l) => l.id === +r.dataset.id); }
   for (const id of ["linesSezione", "linesProspetto"]) {
@@ -375,7 +407,7 @@
     box.addEventListener("click", (e) => {
       const b = e.target.closest("[data-act]"); if (!b) return;
       const l = lineOf(e); if (!l) return;
-      if (b.dataset.act === "edit") { selectLine(l, true); return; }
+      if (b.dataset.act === "edit") { toggleEdit(l); return; }
       if (b.dataset.act === "flip") { const t = l.p1; l.p1 = l.p2; l.p2 = t; }
       else if (b.dataset.act.startsWith("nudge")) {
         // 10 cm in ortogonale alla linea: + = verso la freccia di vista (normale sinistra p1→p2)
@@ -412,7 +444,7 @@
       if (!p1) return;
       const l = mkLine({ label: nextLabel(kind), kind, p1, p2 }, true);
       if (kind === "prospetto") l.t = 5;
-      S.lines.push(l); selectLine(l, true); updateViewer();   // appena disegnata: già selezionata e modificabile
+      S.lines.push(l); setEditing([l]); selectLine(l, true); updateViewer();   // appena disegnata: già selezionata e modificabile
     });
   }));
 

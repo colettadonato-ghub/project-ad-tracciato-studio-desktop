@@ -182,15 +182,17 @@
             <div class="field" data-for="esterno">
               <div class="field-row"><span class="flabel">Prospetti</span>
                 <span><button type="button" class="btn link small" id="btnFrontsAuto">Riproponi i 4 fronti</button>
+                <button type="button" class="btn small" data-editall="prospetto" aria-pressed="false" title="Sblocca o blocca tutti i prospetti insieme">Modifica tutti</button>
                 <button type="button" class="btn small" data-draw="prospetto">Disegna</button></span></div>
               <div class="lines" id="linesProspetto"></div>
               <span class="hint">Linea di vista e profondità: entra nel prospetto tutto ciò che sta entro la profondità, verso la freccia.</span>
             </div>
             <div class="field" data-for="esterno multipiano interno">
               <div class="field-row"><span class="flabel">Sezioni verticali</span>
-                <button type="button" class="btn small" data-draw="sezione">Disegna</button></div>
+                <span><button type="button" class="btn small" data-editall="sezione" aria-pressed="false" title="Sblocca o blocca tutte le sezioni insieme">Modifica tutte</button>
+                <button type="button" class="btn small" data-draw="sezione">Disegna</button></span></div>
               <div class="lines" id="linesSezione"></div>
-              <span class="hint">Traccia la linea con due clic sulla nuvola (Maiusc = parallela ai muri, Esc annulla). Spessore = fascia tagliata, in nero; “oltre” = quanto si vede dietro, in grigio.</span>
+              <span class="hint">Traccia la linea con due clic sulla nuvola (Maiusc = parallela ai muri, Esc annulla). Le linee sono bloccate: premi ✎ sulla singola linea (o “Modifica tutte”) per spostarla; Esc le blocca di nuovo. Spessore = fascia tagliata, in nero; “oltre” = quanto si vede dietro, in grigio.</span>
             </div>
 
             <!-- comuni -->

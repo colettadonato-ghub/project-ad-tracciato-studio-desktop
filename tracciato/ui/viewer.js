@@ -9,6 +9,7 @@
  *   viewer.setLines([{p1, p2, kind, t, beyond, label, active}])   linee di sezione/prospetto (assolute)
  *   viewer.setLevels([{z, label}])               linee di quota (vista laterale)
  *   viewer.startDraw(cb)                         due clic → cb(p1, p2) in coordinate assolute
+ *   viewer.onLock = () => {}                     Esc: blocca di nuovo tutte le linee
  *   viewer.onSelect = (line) => {}              linea scelta con un clic
  *   viewer.onEdit = (line, final) => {}          linee già disegnate, in pianta: trascina un estremo per
  *                                                modificarlo, trascina il tratto per spostarla in
@@ -305,7 +306,8 @@
       });
       window.addEventListener("keydown", (e) => {
         if (e.key === "Escape" && this.draw) this.cancelDraw();
-        const l = this.lines.find((x) => x.selected && x.active !== false);
+        if (e.key === "Escape" && !this.draw && this.lines.some((x) => x.editing)) { this.onLock && this.onLock(); return; }
+        const l = this.lines.find((x) => x.selected && x.editing && x.active !== false);
         if (!l || this.draw || this.mode !== "top" || !["ArrowUp", "ArrowDown"].includes(e.key)) return;
         if (/^(INPUT|SELECT|TEXTAREA)$/.test((document.activeElement || {}).tagName)) return;
         e.preventDefault();
@@ -340,7 +342,7 @@
       let best = null;
       for (let i = this.lines.length - 1; i >= 0; i--) {
         const l = this.lines[i];
-        if (l.active === false || l.locked) continue;
+        if (l.active === false || !l.editing) continue;     // si trascinano solo le linee sbloccate (✎)
         const a = this.project(this.toLocal([l.p1[0], l.p1[1], 0]).slice(0, 2).concat(z));
         const b = this.project(this.toLocal([l.p2[0], l.p2[1], 0]).slice(0, 2).concat(z));
         if (!a || !b) continue;
@@ -528,7 +530,7 @@
           g.lineTo(t[0] - 9 * Math.cos(ang + 0.4), t[1] - 9 * Math.sin(ang + 0.4)); g.closePath(); g.fillStyle = col; g.fill();
         };
         arrow(a, 0); arrow(b, f.L);
-        if (on && this.mode === "top" && !this.draw) {            // maniglie degli estremi (trascinabili)
+        if (on && l.editing && this.mode === "top" && !this.draw) {            // maniglie degli estremi (trascinabili)
           g.setLineDash([]); g.fillStyle = "#fff"; g.lineWidth = 1.5;
           const hs = l.selected ? 6 : 4;
           for (const q of [a, b]) { g.fillRect(q[0] - hs, q[1] - hs, hs * 2, hs * 2); g.strokeRect(q[0] - hs, q[1] - hs, hs * 2, hs * 2); }
