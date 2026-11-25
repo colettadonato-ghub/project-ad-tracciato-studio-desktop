@@ -105,7 +105,7 @@ class SceneParams:
     mode: str = "esterno"
     title: str = "RILIEVO"
     detail: str = "media"
-    scale: int = 100
+    scale: int = 1                      # 1:scale (1 = dimensioni reali)
     z0: float | None = None             # piano 0, quota assoluta
     bbox: list | None = None            # [xmin, ymin, zmin, xmax, ymax, zmax] dall'anteprima
     angle: float = 0.0                  # rotazione dominante dei muri (gradi)
@@ -125,7 +125,7 @@ class SceneParams:
         if p.mode not in MODES:
             raise ValueError(f"Tipo di rilievo non valido: {p.mode}")
         p.scale = int(p.scale)
-        if p.scale not in (20, 50, 100, 200, 500):
+        if p.scale not in (1, 10, 20, 50, 100, 200, 500):
             raise ValueError("Scala non valida")
         if p.detail not in DETAIL_RES:
             p.detail = "media"

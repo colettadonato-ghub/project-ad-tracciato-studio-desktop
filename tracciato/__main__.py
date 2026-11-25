@@ -20,7 +20,7 @@ def _cli(argv):
     ap.add_argument("input")
     ap.add_argument("--out", default="")
     ap.add_argument("--cut", type=float, default=1.10)
-    ap.add_argument("--scale", type=int, default=100)
+    ap.add_argument("--scale", type=int, default=1, help="scala 1:N delle tavole (1 = dimensioni reali)")
     ap.add_argument("--detail", choices=["alta", "media", "bozza"], default="alta")
     ap.add_argument("--title", default="RILIEVO — PIANTA")
     ap.add_argument("--floor-z", type=float)

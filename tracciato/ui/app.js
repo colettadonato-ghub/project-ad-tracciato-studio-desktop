@@ -21,7 +21,7 @@
 
   const S = {
     api: null, file: null, prev: null, mode: null, step: 1, maxStep: 1,
-    lines: [], levels: [], z0: 0, scale: 100, outDir: "", busy: false, previewing: false,
+    lines: [], levels: [], z0: 0, scale: 1, outDir: "", busy: false, previewing: false,
     last: null, modes: {}, sceneSaved: {}, seq: 1, viewer: null,
   };
 
@@ -514,7 +514,7 @@
   function readPlanParams() {
     const n = (id) => ($(id).value === "" ? null : +$(id).value);
     return {
-      cut: +$("pCut").value, scale: Math.min(S.scale, 200), detail: $("pDetail").value, title: $("pTitle").value.trim(),
+      cut: +$("pCut").value, scale: S.scale, detail: $("pDetail").value, title: $("pTitle").value.trim(),
       align: $("pAlign").checked, section_points: $("pSection").checked, inner_dims: $("pInnerDims").checked,
       max_wall: +$("pWall").value || 0.55, min_room: +$("pRoom").value || 1, high_band: +$("pBand").value || 0.35,
       floor_z: n("pFloor"), ceil_z: n("pCeil"),
@@ -761,7 +761,7 @@
     $("dataDir").textContent = st.data_dir;
     $("logPath").textContent = st.log_dir;
     applyPlanParams(st.params);
-    setScale(100);
+    setScale(1);
     if (st.output_dir) { S.outDir = st.output_dir; $("outDir").textContent = st.output_dir; }
     goStep(1);
     if (st.previous_crash) {

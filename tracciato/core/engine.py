@@ -1073,74 +1073,119 @@ def write_dxf(path, walls, ops, rooms, sec, meta, a):
     doc.saveas(path)
 
 # ----------------------------------------------------------------------------- PDF / PNG
+PAPER_CUSTOM = "Fuori formato"
+
+
+def _sheet_format(dw, dh):
+    """(nome, larghezza mm, altezza mm, fattore scritte) per un disegno di dw×dh mm: il più piccolo A3…A0
+    in cui entra; altrimenti un foglio fuori formato grande quanto il disegno, con scritte e linee
+    ingrandite in proporzione (stesso aspetto di un A0)."""
+    for name, pw, ph in [("A3", 420, 297), ("A2", 594, 420), ("A1", 841, 594), ("A0", 1189, 841)]:
+        if dw <= pw - 20 and dh <= ph - 60:
+            return name, pw, ph, 1.0
+    ann = max(dw / (1189 - 20), dh / (841 - 60), 1.0)
+    return PAPER_CUSTOM, dw + 20 * ann, dh + 60 * ann, ann
+
+
+def _png_dpi(w_mm, h_mm, dpi=300, max_px=70e6):
+    """300 dpi, ridotti (senza arrotondare: i metadati restano esatti) se la tavola supera max_px pixel."""
+    px = (w_mm / 25.4 * dpi) * (h_mm / 25.4 * dpi)
+    return round(dpi * math.sqrt(max_px / px), 2) if px > max_px else dpi
+
+
+def _grow(ax, k):
+    """Ingrandisce scritte e spessori delle annotazioni di un fattore k (fogli fuori formato)."""
+    if k <= 1:
+        return
+    for t in ax.texts:
+        t.set_fontsize(t.get_fontsize() * k)
+        ap = getattr(t, "arrow_patch", None)
+        if ap is not None:
+            ap.set_linewidth(ap.get_linewidth() * k)
+    for ln in ax.lines:
+        ln.set_linewidth(ln.get_linewidth() * k)
+    for pt in ax.patches:
+        pt.set_linewidth(pt.get_linewidth() * k)
+
+
 def write_pdf(path_pdf, path_png, walls, ops, rooms, meta, a, path_preview=None):
     import matplotlib; matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     from matplotlib.patches import PathPatch, Arc
     from matplotlib.path import Path as MPath
     allp = np.vstack([p["pts"] for p in walls]); x0, y0 = allp.min(0); x1, y1 = allp.max(0)
+    papers_ok = (1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000)
+
+    def make(S):
+        m = 1.5                                                  # margine disegno (m)
+        dw, dh = (x1 - x0 + 2 * m) * 1000 / S, (y1 - y0 + 2 * m) * 1000 / S
+        # formato carta: il più piccolo (orizzontale) in cui il disegno entra in scala; se non entra in A0
+        # (es. 1:1) il foglio è "fuori formato", grande quanto il disegno, e le scritte crescono in proporzione
+        paper, W_mm, H_mm, ann = _sheet_format(dw, dh)
+        fig = plt.figure(figsize=(W_mm / 25.4, H_mm / 25.4))
+        left = (W_mm - dw) / 2 / W_mm; bottom = (H_mm - dh + 30 * ann) / 2 / H_mm
+        ax = fig.add_axes([left, bottom, dw / W_mm, dh / H_mm])
+        ax.set_xlim(x0 - m, x1 + m); ax.set_ylim(y0 - m, y1 + m); ax.set_aspect("equal"); ax.axis("off")
+
+        verts, codes = [], []
+        for p in walls:
+            pts = p["pts"]; verts += pts.tolist() + [pts[0].tolist()]
+            codes += [MPath.MOVETO] + [MPath.LINETO] * (len(pts) - 1) + [MPath.CLOSEPOLY]
+        ax.add_patch(PathPatch(MPath(verts, codes), facecolor="#2E2E2E", edgecolor="#111111", lw=0.8))
+
+        for op in ops:
+            cx, cy = op["c"]; w, d = op["width"], max(op["depth"], 0.1)
+            ux, uy = (1, 0) if op["horiz"] else (0, 1); vx, vy = -uy, ux
+            P = lambda s, t: (cx + ux * s + vx * t, cy + uy * s + vy * t)
+            if op["type"] == "FINESTRA":
+                for t in (-d / 2, -d / 6, d / 6, d / 2):
+                    (xa, ya), (xb, yb) = P(-w / 2, t), P(w / 2, t); ax.plot([xa, xb], [ya, yb], c="#1F4FA3", lw=0.6)
+            else:
+                hinge = P(-w / 2, d / 2); tip = P(-w / 2, d / 2 + w)
+                ax.plot([hinge[0], tip[0]], [hinge[1], tip[1]], c="#2E2E2E", lw=0.7)
+                base = math.degrees(math.atan2(vy, vx))
+                ax.add_patch(Arc(hinge, 2 * w, 2 * w, theta1=base - 90, theta2=base, color="#5C5C5C", lw=0.5, ls="--"))
+            if getattr(a, "inner_dims", True):
+                lp = P(0, -d / 2 - 0.25)
+                ax.text(*lp, f"{'F' if op['type']=='FINESTRA' else 'P'} {w*100:.0f}", fontsize=5, ha="center", va="center", color="#555")
+
+        for i, r in enumerate(rooms, 1):
+            c = r["pts"].mean(0)
+            ax.text(c[0], c[1] + 0.12, f"VANO {i}", fontsize=7, ha="center", weight="bold")
+            ax.text(c[0], c[1] - 0.18, f"{r['area']:.2f} m²", fontsize=6.5, ha="center")
+        # niente linee di quota nella pianta
+        # barra di scala 0-5 m
+        bx, by = x0, y0 - 1.3
+        for i in range(5):
+            ax.add_patch(plt.Rectangle((bx + i, by), 1, 0.08, fc="black" if i % 2 == 0 else "white", ec="black", lw=0.4))
+        for i in range(6):
+            ax.text(bx + i, by - 0.2, f"{i}" + (" m" if i == 5 else ""), fontsize=5, ha="center")
+        ax.annotate("N*", (x1 + 0.8, y1 + 0.2), (x1 + 0.8, y1 - 0.6), ha="center", fontsize=7,
+                    arrowprops=dict(arrowstyle="-|>", lw=0.8))
+
+        # cartiglio
+        tb = fig.add_axes([(W_mm - 190 * ann) / W_mm, 8 * ann / H_mm, 180 * ann / W_mm, 24 * ann / H_mm]); tb.set_xticks([]); tb.set_yticks([])
+        for sp in tb.spines.values(): sp.set_linewidth(0.8 * ann)
+        tb.text(0.02, 0.72, a.title, fontsize=10 * ann, weight="bold", transform=tb.transAxes)
+        tb.text(0.02, 0.40, f"Pianta da nuvola di punti — piano di sezione h = {meta['cut']:.2f} m  —  scala 1:{S}  —  {paper}", fontsize=7 * ann, transform=tb.transAxes)
+        tb.text(0.02, 0.12, f"Superficie utile vani: {sum(r['area'] for r in rooms):.2f} m²   ·   h netta {meta['ceil_z']-meta['floor_z']:.2f} m   ·   "
+                f"rot. {meta['rotation_deg']:.2f}°   ·   *N di griglia", fontsize=6 * ann, transform=tb.transAxes)
+        _grow(ax, ann)
+        return fig, ax, paper, W_mm, H_mm
+
     S = a.scale
-    m = 1.5                                                      # margine disegno (m)
-    dw, dh = (x1 - x0 + 2 * m) * 1000 / S, (y1 - y0 + 2 * m) * 1000 / S
-    # formato carta: il più piccolo (orizzontale) in cui il disegno entra in scala
-    papers = [("A3", 420, 297), ("A2", 594, 420), ("A1", 841, 594), ("A0", 1189, 841)]
-    paper, W_mm, H_mm = papers[-1]
-    for name, pw, ph in papers:
-        if dw <= pw - 20 and dh <= ph - 60:
-            paper, W_mm, H_mm = name, pw, ph
-            break
-    else:
-        log.warning(f"Il disegno non entra in A0 a 1:{S}: scegli una scala più piccola")
+    fig, ax, paper, W_mm, H_mm = make(S)
     meta["paper"] = paper
-    fig = plt.figure(figsize=(W_mm / 25.4, H_mm / 25.4))
-    left = (W_mm - dw) / 2 / W_mm; bottom = (H_mm - dh + 30) / 2 / H_mm
-    ax = fig.add_axes([left, bottom, dw / W_mm, dh / H_mm])
-    ax.set_xlim(x0 - m, x1 + m); ax.set_ylim(y0 - m, y1 + m); ax.set_aspect("equal"); ax.axis("off")
-
-    verts, codes = [], []
-    for p in walls:
-        pts = p["pts"]; verts += pts.tolist() + [pts[0].tolist()]
-        codes += [MPath.MOVETO] + [MPath.LINETO] * (len(pts) - 1) + [MPath.CLOSEPOLY]
-    ax.add_patch(PathPatch(MPath(verts, codes), facecolor="#2E2E2E", edgecolor="#111111", lw=0.8))
-
-    for op in ops:
-        cx, cy = op["c"]; w, d = op["width"], max(op["depth"], 0.1)
-        ux, uy = (1, 0) if op["horiz"] else (0, 1); vx, vy = -uy, ux
-        P = lambda s, t: (cx + ux * s + vx * t, cy + uy * s + vy * t)
-        if op["type"] == "FINESTRA":
-            for t in (-d / 2, -d / 6, d / 6, d / 2):
-                (xa, ya), (xb, yb) = P(-w / 2, t), P(w / 2, t); ax.plot([xa, xb], [ya, yb], c="#1F4FA3", lw=0.6)
-        else:
-            hinge = P(-w / 2, d / 2); tip = P(-w / 2, d / 2 + w)
-            ax.plot([hinge[0], tip[0]], [hinge[1], tip[1]], c="#2E2E2E", lw=0.7)
-            base = math.degrees(math.atan2(vy, vx))
-            ax.add_patch(Arc(hinge, 2 * w, 2 * w, theta1=base - 90, theta2=base, color="#5C5C5C", lw=0.5, ls="--"))
-        if getattr(a, "inner_dims", True):
-            lp = P(0, -d / 2 - 0.25)
-            ax.text(*lp, f"{'F' if op['type']=='FINESTRA' else 'P'} {w*100:.0f}", fontsize=5, ha="center", va="center", color="#555")
-
-    for i, r in enumerate(rooms, 1):
-        c = r["pts"].mean(0)
-        ax.text(c[0], c[1] + 0.12, f"VANO {i}", fontsize=7, ha="center", weight="bold")
-        ax.text(c[0], c[1] - 0.18, f"{r['area']:.2f} m²", fontsize=6.5, ha="center")
-    # niente linee di quota nella pianta
-    # barra di scala 0-5 m
-    bx, by = x0, y0 - 1.3
-    for i in range(5):
-        ax.add_patch(plt.Rectangle((bx + i, by), 1, 0.08, fc="black" if i % 2 == 0 else "white", ec="black", lw=0.4))
-    for i in range(6):
-        ax.text(bx + i, by - 0.2, f"{i}" + (" m" if i == 5 else ""), fontsize=5, ha="center")
-    ax.annotate("N*", (x1 + 0.8, y1 + 0.2), (x1 + 0.8, y1 - 0.6), ha="center", fontsize=7,
-                arrowprops=dict(arrowstyle="-|>", lw=0.8))
-
-    # cartiglio
-    tb = fig.add_axes([(W_mm - 190) / W_mm, 8 / H_mm, 180 / W_mm, 24 / H_mm]); tb.set_xticks([]); tb.set_yticks([])
-    tb.text(0.02, 0.72, a.title, fontsize=10, weight="bold", transform=tb.transAxes)
-    tb.text(0.02, 0.40, f"Pianta da nuvola di punti — piano di sezione h = {meta['cut']:.2f} m  —  scala 1:{S}  —  {paper}", fontsize=7, transform=tb.transAxes)
-    tb.text(0.02, 0.12, f"Superficie utile vani: {sum(r['area'] for r in rooms):.2f} m²   ·   h netta {meta['ceil_z']-meta['floor_z']:.2f} m   ·   "
-            f"rot. {meta['rotation_deg']:.2f}°   ·   *N di griglia", fontsize=6, transform=tb.transAxes)
-    px300 = (W_mm / 25.4 * 300) * (H_mm / 25.4 * 300)       # 300 dpi, ridotti se la tavola è enorme (A1/A0)
-    fig.savefig(path_pdf); fig.savefig(path_png, dpi=int(300 * min(1.0, math.sqrt(70e6 / px300))))
+    custom = paper == PAPER_CUSTOM
+    # PNG alla scala richiesta (anche 1:1: foglio = dimensioni reali, dpi nei metadati = misure vere)
+    fig.savefig(path_png, dpi=_png_dpi(W_mm, H_mm))
+    if custom:                       # PDF e anteprima: la scala standard più grande che entra in A0
+        plt.close(fig)
+        Spdf = next((v for v in papers_ok if v > S and _sheet_format((x1 - x0 + 3) * 1000 / v, (y1 - y0 + 3) * 1000 / v)[0] != PAPER_CUSTOM), S)
+        log.info(f"PDF e anteprima in scala 1:{Spdf} (il PNG resta a 1:{S}, formato {paper})")
+        fig, ax, paper_pdf, W_mm, H_mm = make(Spdf)
+        meta["paper"] = paper_pdf
+    fig.savefig(path_pdf)
     if path_preview:
         bb = ax.get_tightbbox(fig.canvas.get_renderer()).transformed(fig.dpi_scale_trans.inverted())
         fig.savefig(path_preview, dpi=300, bbox_inches=bb.expanded(1.03, 1.03))
@@ -1161,7 +1206,7 @@ def main():
     ap.add_argument("--floor-z", type=float); ap.add_argument("--ceil-z", type=float)
     ap.add_argument("--debug", action="store_true", help="salva le maschere intermedie dbg_*.png")
     ap.add_argument("--no-align", action="store_true", help="non ruotare la nuvola")
-    ap.add_argument("--scale", type=int, default=100); ap.add_argument("--title", default="RILIEVO — PIANTA")
+    ap.add_argument("--scale", type=int, default=1); ap.add_argument("--title", default="RILIEVO — PIANTA")
     a = ap.parse_args()
     logging.basicConfig(level=logging.INFO, format="  · %(message)s")
     out = a.out or os.path.splitext(a.input)[0] + "_pianta"

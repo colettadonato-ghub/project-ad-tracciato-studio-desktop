@@ -117,6 +117,7 @@ input[type=range] { width: 100%; accent-color: var(--inchiostro); }
 .hint { font-size: 12px; color: var(--matita); }
 .seg { display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid var(--inchiostro); }
 .seg.four { grid-template-columns: repeat(4, 1fr); }
+.seg.six { grid-template-columns: repeat(6, 1fr); }
 .seg button { height: 40px; border: 0; background: var(--bianco); font: 14px var(--mono); }
 .seg button + button { border-left: 1px solid var(--inchiostro); }
 .seg button[aria-pressed="true"] { background: var(--inchiostro); color: var(--bianco); font-weight: 500; }

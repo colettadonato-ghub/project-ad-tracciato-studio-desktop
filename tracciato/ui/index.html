@@ -198,13 +198,15 @@
             <!-- comuni -->
             <div class="field">
               <span class="flabel">Scala delle tavole</span>
-              <div class="seg four" role="group" aria-label="Scala" id="pScale">
+              <div class="seg six" role="group" aria-label="Scala" id="pScale">
+                <button type="button" data-v="1" aria-pressed="true">1:1</button>
+                <button type="button" data-v="20" aria-pressed="false">1:20</button>
                 <button type="button" data-v="50" aria-pressed="false">1:50</button>
-                <button type="button" data-v="100" aria-pressed="true">1:100</button>
+                <button type="button" data-v="100" aria-pressed="false">1:100</button>
                 <button type="button" data-v="200" aria-pressed="false">1:200</button>
                 <button type="button" data-v="500" aria-pressed="false">1:500</button>
               </div>
-              <span class="hint">Il formato del foglio (A3…A0) viene scelto in automatico.</span>
+              <span class="hint">1:1 = dimensioni reali: i PNG sono “fuori formato”, grandi quanto il rilievo, e i dpi nei metadati restituiscono le misure vere (importali in CAD a 1:1). Se la tavola non entra in A0, il PDF della pianta usa la scala standard più grande che entra; altrimenti il foglio (A3…A0) è scelto in automatico.</span>
             </div>
             <div class="field">
               <label for="pDetail">Dettaglio</label>

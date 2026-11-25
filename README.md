@@ -49,8 +49,9 @@ Micro-app desktop di **AD Studio Tecnico**. Apre un rilievo laser (`.las`, `.laz
 
 ### Tavole
 
-- Le tavole sono in scala 1:50, 1:100, 1:200 o 1:500.
-- Il formato (A3…A0) è scelto in automatico.
+- Le tavole sono in scala **1:1 (predefinita, dimensioni reali)**, 1:20, 1:50, 1:100, 1:200 o 1:500.
+- Se il disegno entra in A3…A0 alla scala scelta, il formato è scelto in automatico. Se non entra (sempre a 1:1) la tavola PNG è *fuori formato*: grande quanto il rilievo, con scritte e linee ingrandite in proporzione e i dpi nei metadati calibrati sulle misure reali (importando il PNG in CAD a 1:1 le dimensioni sono quelle vere). Per tenere i file gestibili i dpi scendono, fino a circa 1 pixel per millimetro.
+- Il PDF della pianta d'interno, quando la scala scelta non entra in A0, usa la scala standard più grande che entra (indicata nel cartiglio). Il DXF è sempre in metri, 1:1.
 - Ogni tavola ha cornice, cartiglio di studio, barra di scala e quote. Le quote sono riferite al piano 0.
 
 ### File prodotti

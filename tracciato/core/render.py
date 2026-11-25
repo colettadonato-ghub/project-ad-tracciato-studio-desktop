@@ -21,20 +21,38 @@ CARTA = "#FFFFFF"
 INFO = "#1F4FA3"
 PAPERS = [("A3", 420, 297), ("A2", 594, 420), ("A1", 841, 594), ("A0", 1189, 841)]
 DPI = 300            # risoluzione di stampa dei PNG
+PAPER_CUSTOM = "Fuori formato"   # foglio grande quanto il disegno (es. scala 1:1)
 MAX_PNG_PIXELS = 70_000_000   # tetto: oltre, il dpi scende per non esaurire la memoria (A1/A0)
 
 
 def png_dpi(w_mm, h_mm, dpi=DPI, max_px=MAX_PNG_PIXELS):
     """DPI del PNG: `dpi`, ridotto solo se la tavola supererebbe `max_px` pixel."""
     px = (w_mm / 25.4 * dpi) * (h_mm / 25.4 * dpi)
-    return int(dpi * math.sqrt(max_px / px)) if px > max_px else dpi
+    return round(dpi * math.sqrt(max_px / px), 2) if px > max_px else dpi   # senza arrotondare: metadati dpi esatti
 
 
 def _paper(dw, dh):
+    """(nome, larghezza, altezza, fattore scritte). Se il disegno non entra in A0 il foglio è fuori formato,
+    grande quanto il disegno (a 1:1 = dimensioni reali) e scritte/linee crescono in proporzione."""
     for name, pw, ph in PAPERS:
         if dw <= pw - 24 and dh <= ph - 70:
-            return name, pw, ph
-    return PAPERS[-1]
+            return name, pw, ph, 1.0
+    ann = max(dw / (PAPERS[-1][1] - 24), dh / (PAPERS[-1][2] - 70), 1.0)
+    return PAPER_CUSTOM, dw + 24 * ann, dh + 70 * ann, ann
+
+
+def _grow(ax, k):
+    if k <= 1:
+        return
+    for t in ax.texts:
+        t.set_fontsize(t.get_fontsize() * k)
+        ap = getattr(t, "arrow_patch", None)
+        if ap is not None:
+            ap.set_linewidth(ap.get_linewidth() * k)
+    for ln in ax.lines:
+        ln.set_linewidth(ln.get_linewidth() * k)
+    for pt in ax.patches:
+        pt.set_linewidth(pt.get_linewidth() * k)
 
 
 def nice_step(length_m):
@@ -60,12 +78,11 @@ def sheet(path_png, img, extent, scale, title, subtitle, info, draw=None, margin
     x0, x1, y0, y1 = extent
     S = scale
     dw, dh = (x1 - x0 + 2 * margin) * 1000 / S, (y1 - y0 + 2 * margin) * 1000 / S
-    paper, W_mm, H_mm = _paper(dw, dh)
-    if dw > W_mm - 24 or dh > H_mm - 70:
-        log.warning(f"L'elaborato non entra in A0 a 1:{S}: la tavola viene ridotta. Scegli una scala più piccola.")
-        k = min((W_mm - 24) / dw, (H_mm - 70) / dh)
-        dw, dh = dw * k, dh * k
+    paper, W_mm, H_mm, ann = _paper(dw, dh)
     dpi = png_dpi(W_mm, H_mm)
+    if paper == PAPER_CUSTOM:
+        log.info(f"Tavola fuori formato a 1:{S}: {W_mm / 1000:.2f} × {H_mm / 1000:.2f} m, PNG a {dpi:g} dpi "
+                 f"(misure reali: i dpi nei metadati restituiscono le dimensioni in scala)")
 
     # il raster può essere più fitto dei pixel della tavola: tengo i punti scuri (min) prima di ridurre
     out_px_per_m = dw / (x1 - x0 + 2 * margin) * dpi / 25.4
@@ -77,7 +94,7 @@ def sheet(path_png, img, extent, scale, title, subtitle, info, draw=None, margin
 
     fig = plt.figure(figsize=(W_mm / 25.4, H_mm / 25.4), facecolor=CARTA)
     left = (W_mm - dw) / 2 / W_mm
-    bottom = (H_mm - dh + 38) / 2 / H_mm
+    bottom = (H_mm - dh + 38 * ann) / 2 / H_mm
     ax = fig.add_axes([left, bottom, dw / W_mm, dh / H_mm])
     ax.set_xlim(x0 - margin, x1 + margin)
     ax.set_ylim(y0 - margin, y1 + margin)
@@ -88,28 +105,29 @@ def sheet(path_png, img, extent, scale, title, subtitle, info, draw=None, margin
               interpolation="antialiased", interpolation_stage="rgba", zorder=1)
     if draw:
         draw(ax)
+    _grow(ax, ann)
 
     # cornice sottile della tavola
-    fr = fig.add_axes([6 / W_mm, 6 / H_mm, 1 - 12 / W_mm, 1 - 12 / H_mm])
+    fr = fig.add_axes([6 * ann / W_mm, 6 * ann / H_mm, 1 - 12 * ann / W_mm, 1 - 12 * ann / H_mm])
     fr.set_xticks([]); fr.set_yticks([])
     fr.patch.set_alpha(0)
     for s in fr.spines.values():
-        s.set_linewidth(0.6); s.set_color(INK)
+        s.set_linewidth(0.6 * ann); s.set_color(INK)
     fr.set_zorder(-1)
 
     # cartiglio
-    tb = fig.add_axes([(W_mm - 196) / W_mm, 10 / H_mm, 184 / W_mm, 28 / H_mm])
+    tb = fig.add_axes([(W_mm - 196 * ann) / W_mm, 10 * ann / H_mm, 184 * ann / W_mm, 28 * ann / H_mm])
     tb.set_xticks([]); tb.set_yticks([])
     for s in tb.spines.values():
-        s.set_linewidth(0.6); s.set_color(INK)
-    tb.axvline(0.27, color=INK, lw=0.6)
-    tb.text(0.03, 0.70, "AD", fontsize=15, weight="light", family="DejaVu Sans", transform=tb.transAxes)
-    tb.text(0.03, 0.44, "STUDIO TECNICO", fontsize=6, family="DejaVu Sans Mono", transform=tb.transAxes)
-    tb.text(0.03, 0.12, datetime.now().strftime("%d.%m.%Y"), fontsize=6, family="DejaVu Sans Mono",
+        s.set_linewidth(0.6 * ann); s.set_color(INK)
+    tb.axvline(0.27, color=INK, lw=0.6 * ann)
+    tb.text(0.03, 0.70, "AD", fontsize=15 * ann, weight="light", family="DejaVu Sans", transform=tb.transAxes)
+    tb.text(0.03, 0.44, "STUDIO TECNICO", fontsize=6 * ann, family="DejaVu Sans Mono", transform=tb.transAxes)
+    tb.text(0.03, 0.12, datetime.now().strftime("%d.%m.%Y"), fontsize=6 * ann, family="DejaVu Sans Mono",
             color=MATITA, transform=tb.transAxes)
-    tb.text(0.30, 0.72, title, fontsize=10, weight="bold", transform=tb.transAxes)
-    tb.text(0.30, 0.44, f"{subtitle}  ·  scala 1:{S}  ·  {paper}", fontsize=7, transform=tb.transAxes)
-    tb.text(0.30, 0.14, info, fontsize=6, color=GRAFITE, family="DejaVu Sans Mono", transform=tb.transAxes)
+    tb.text(0.30, 0.72, title, fontsize=10 * ann, weight="bold", transform=tb.transAxes)
+    tb.text(0.30, 0.44, f"{subtitle}  ·  scala 1:{S}  ·  {paper}", fontsize=7 * ann, transform=tb.transAxes)
+    tb.text(0.30, 0.14, info, fontsize=6 * ann, color=GRAFITE, family="DejaVu Sans Mono", transform=tb.transAxes)
 
     fig.savefig(path_png, dpi=dpi, facecolor=CARTA)
     if pdf_path:

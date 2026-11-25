@@ -35,7 +35,7 @@ DETAIL = {"alta": (0.01, 0.02), "media": (0.02, 0.03), "bozza": (0.03, 0.045)}
 @dataclass
 class Params:
     cut: float = 1.10               # quota del piano di sezione dal pavimento (m)
-    scale: int = 100                # scala del PDF (1:scale)
+    scale: int = 1                  # scala del PNG (1:scale, 1 = dimensioni reali); il PDF usa la scala standard che entra in A0
     detail: str = "alta"            # alta | media | bozza
     title: str = "RILIEVO — PIANTA"
     align: bool = True              # raddrizza i muri sugli assi
