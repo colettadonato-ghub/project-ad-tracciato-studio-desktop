@@ -39,7 +39,18 @@ MODES = {
     "multipiano": "Interno multi-piano",
 }
 DETAIL_RES = {"massima": 0.005, "alta": 0.01, "media": 0.02, "bozza": 0.03}
-MAX_PIXELS = 36_000_000
+MAX_PIXELS = 36_000_000          # tetto minimo di pixel per elaborato
+MAX_PIXELS_TOP = 100_000_000     # tetto massimo, se la RAM libera lo consente
+
+
+def pixel_budget(bytes_per_px_total):
+    """Pixel massimi per ciascuna griglia: usa fino a ~35 % della RAM libera (le griglie sono più d'una e il
+    disegno finale ne richiede copie), tra MAX_PIXELS e MAX_PIXELS_TOP."""
+    from .logs import memory_info
+    mem = memory_info()
+    avail = mem[1] if mem else 6 * 1024 ** 3
+    cap = int(avail * 0.35 / max(bytes_per_px_total, 1) / 2.5)
+    return max(MAX_PIXELS, min(MAX_PIXELS_TOP, cap))
 
 
 def stages_for(mode, n_sections=0, n_elevations=0, has_bbox=True):
@@ -155,11 +166,11 @@ class SceneParams:
 
 # ------------------------------------------------------------------ griglie
 class Raster:
-    def __init__(self, x0, y0, x1, y1, res):
+    def __init__(self, x0, y0, x1, y1, res, max_px=MAX_PIXELS):
         self.res = res
         area = (x1 - x0) * (y1 - y0) / res ** 2
-        if area > MAX_PIXELS:
-            self.res = res * math.sqrt(area / MAX_PIXELS)
+        if area > max_px:
+            self.res = res * math.sqrt(area / max_px)
             log.warning(f"Elaborato molto esteso: risoluzione portata a {self.res * 100:.1f} cm/pixel")
         self.x0, self.y0 = x0, y0
         self.w = max(int(math.ceil((x1 - x0) / self.res)), 1)
@@ -253,20 +264,24 @@ class Job:
         p, res = self.p, self.p.res
         x0, y0, x1, y1 = self.plan_box
         self.plan = None
+        # memoria: byte per pixel di tutte le griglie (piante + sezioni) → pixel massimi di ciascuna
+        bpp = (12 if p.mode == "esterno" else 8 * len(p.levels) if p.mode == "multipiano" else 0) + 8 * len(p.lines)
+        mx = pixel_budget(bpp)
+        log.info(f"Griglie: fino a {mx / 1e6:.0f} milioni di pixel ciascuna (in base alla RAM libera)")
         if p.mode == "esterno":
-            self.plan = Raster(x0, y0, x1, y1, res)
+            self.plan = Raster(x0, y0, x1, y1, res, mx)
             self.fp_max = self.plan.zeros(np.float32, np.inf)        # −(quota massima): copertura/sporti
             self.fp_cut = self.plan.zeros()                           # fascia del perimetro
             self.fp_high = self.plan.zeros()                          # stessa pianta, 1,0–1,6 m più su
         elif p.mode == "multipiano":
-            self.plan = Raster(x0, y0, x1, y1, res)
+            self.plan = Raster(x0, y0, x1, y1, res, mx)
             self.lv_cut = [self.plan.zeros() for _ in p.levels]
             self.lv_under = [self.plan.zeros() for _ in p.levels]
         self.secs = []
         zlo, zhi = self.zmin - self.p.z0 - 0.3, self.zmax - self.p.z0 + 0.3
         for ln in p.lines:
             p1, u, n, L = ln.frame()
-            r = Raster(-1.0, zlo, L + 1.0, zhi, res)
+            r = Raster(-1.0, zlo, L + 1.0, zhi, res, mx)
             sec = {"line": ln, "p1": p1, "u": u, "n": n, "L": L, "r": r,
                    "cut": r.zeros(), "depth": r.zeros(np.float32, np.inf)}
             self.secs.append(sec)
