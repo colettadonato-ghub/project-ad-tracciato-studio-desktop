@@ -478,15 +478,8 @@ class Job:
             n_cut = int(cuts[i].sum())
             if n_cut < 50:
                 log.warning(f"{lv.name}: quasi nessun punto alla quota di sezione (+{lv.z + lv.cut:.2f})")
-            cut_area = cuts[i][r0:r1, c0:c1]
-            rows, cols = np.where(cut_area > 0)
 
-            def draw(ax, rows=rows, cols=cols):
-                if len(rows):
-                    xa, xb = ext[0] + cols.min() * res, ext[0] + (cols.max() + 1) * res
-                    ya, yb = ext[2] + rows.min() * res, ext[2] + (rows.max() + 1) * res
-                    render.dim_h(ax, xa, xb, ya - 0.9)
-                    render.dim_v(ax, xa - 0.9, ya, yb)
+            def draw(ax):
                 self._marks(ax)
                 render.scale_bar(ax, ext[0], ext[2] - 1.6, ext[1] - ext[0])
                 render.north(ax, ext[1] + 0.6, ext[3] - 1.4)

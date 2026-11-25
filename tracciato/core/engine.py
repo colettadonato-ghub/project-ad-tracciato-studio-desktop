@@ -1017,7 +1017,7 @@ def write_dxf(path, walls, ops, rooms, sec, meta, a):
     from ezdxf.enums import TextEntityAlignment
     doc = ezdxf.new("R2018", setup=True); doc.units = ezdxf.units.M
     for name, col in [("MURI", 7), ("MURI_CAMPITURA", 8), ("FINESTRE", 4), ("PORTE", 3),
-                      ("TESTI", 7), ("QUOTE", 1), ("NUVOLA_SEZIONE", 9)]:
+                      ("TESTI", 7), ("NUVOLA_SEZIONE", 9)]:
         doc.layers.add(name, color=col)
     doc.layers.get("NUVOLA_SEZIONE").off()        # accendila per verificare/ricalcare
     msp = doc.modelspace()
@@ -1062,23 +1062,7 @@ def write_dxf(path, walls, ops, rooms, sec, meta, a):
         msp.add_text(f"{r['area']:.2f} m²", height=0.16, dxfattribs={"layer": "TESTI"}).set_placement(
             (c[0], c[1] - 0.15), align=TextEntityAlignment.MIDDLE_CENTER)
 
-    # quote d'ingombro esterne
-    allp = np.vstack([p["pts"] for p in outer]); x0, y0 = allp.min(0); x1, y1 = allp.max(0)
-    st = "EZDXF"
-    big = {"dimtxt": 0.18, "dimasz": 0.12, "dimdec": 2, "dimlfac": 1.0}
-    small = {"dimtxt": 0.12, "dimasz": 0.08, "dimdec": 2, "dimlfac": 1.0, "dimexe": 0.05, "dimexo": 0.0}
-    msp.add_linear_dim(base=(0, y0 - 0.8), p1=(x0, y0), p2=(x1, y0), dimstyle=st,
-                       override=big, dxfattribs={"layer": "QUOTE"}).render()
-    msp.add_linear_dim(base=(x0 - 0.8, 0), p1=(x0, y0), p2=(x0, y1), angle=90, dimstyle=st,
-                       override=big, dxfattribs={"layer": "QUOTE"}).render()
-    # quote dei vani (larghezza x profondità del rettangolo d'ingombro)
-    for r in (rooms if getattr(a, "inner_dims", True) else []):   # luci nette interne (rettangolo d'ingombro)
-        rx0, ry0 = r["pts"].min(0); rx1, ry1 = r["pts"].max(0)
-        yb, xb = ry0 + 0.45, rx0 + 0.45
-        msp.add_linear_dim(base=(0, yb), p1=(rx0, yb), p2=(rx1, yb), dimstyle=st, override=small,
-                           dxfattribs={"layer": "QUOTE"}).render()
-        msp.add_linear_dim(base=(xb, 0), p1=(xb, ry0), p2=(xb, ry1), angle=90, dimstyle=st, override=small,
-                           dxfattribs={"layer": "QUOTE"}).render()
+    # niente linee di quota nel DXF (né d'ingombro né dei vani)
 
     # punti della sezione (layer spento) — come il DXF che usi oggi per ricalcare
     step = max(1, len(sec) // 60000)
@@ -1139,11 +1123,7 @@ def write_pdf(path_pdf, path_png, walls, ops, rooms, meta, a, path_preview=None)
         c = r["pts"].mean(0)
         ax.text(c[0], c[1] + 0.12, f"VANO {i}", fontsize=7, ha="center", weight="bold")
         ax.text(c[0], c[1] - 0.18, f"{r['area']:.2f} m²", fontsize=6.5, ha="center")
-    # quote esterne
-    for (pa, pb, off, rot) in [((x0, y0 - 0.8), (x1, y0 - 0.8), (0, -0.25), 0), ((x0 - 0.8, y0), (x0 - 0.8, y1), (-0.25, 0), 90)]:
-        ax.annotate("", pa, pb, arrowprops=dict(arrowstyle="<->", lw=0.5))
-        mid = ((pa[0] + pb[0]) / 2 + off[0], (pa[1] + pb[1]) / 2 + off[1])
-        L = math.dist(pa, pb); ax.text(*mid, f"{L:.2f}", fontsize=6.5, ha="center", va="center", rotation=rot)
+    # niente linee di quota nella pianta
     # barra di scala 0-5 m
     bx, by = x0, y0 - 1.3
     for i in range(5):
