@@ -39,6 +39,7 @@ class Params:
     title: str = "RILIEVO — PIANTA"
     align: bool = True              # raddrizza i muri sugli assi
     section_points: bool = True     # punti della sezione nel DXF (layer spento)
+    inner_dims: bool = True         # quote interne alla pianta (luci dei vani, misure di porte e finestre)
     max_wall: float = 0.55          # spessore massimo dei muri (m)
     high_band: float = 0.35         # fascia sotto soffitto (m)
     min_room: float = 1.0           # superficie minima di un vano (m²)
@@ -79,7 +80,7 @@ class Params:
                                max_wall=self.max_wall, eps=0.02, min_room=self.min_room,
                                floor_z=self.floor_z, ceil_z=self.ceil_z, no_align=not self.align,
                                scale=self.scale, title=self.title or "RILIEVO — PIANTA",
-                               section_points=self.section_points, debug=False,
+                               section_points=self.section_points, inner_dims=self.inner_dims, debug=False,
                                survey_type=self.survey_type)
 
 

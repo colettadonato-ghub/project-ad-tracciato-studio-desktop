@@ -1017,7 +1017,7 @@ def write_dxf(path, walls, ops, rooms, sec, meta, a):
     from ezdxf.enums import TextEntityAlignment
     doc = ezdxf.new("R2018", setup=True); doc.units = ezdxf.units.M
     for name, col in [("MURI", 7), ("MURI_CAMPITURA", 8), ("FINESTRE", 4), ("PORTE", 3),
-                      ("VANI", 6), ("TESTI", 7), ("QUOTE", 1), ("NUVOLA_SEZIONE", 9)]:
+                      ("TESTI", 7), ("QUOTE", 1), ("NUVOLA_SEZIONE", 9)]:
         doc.layers.add(name, color=col)
     doc.layers.get("NUVOLA_SEZIONE").off()        # accendila per verificare/ricalcare
     msp = doc.modelspace()
@@ -1050,12 +1050,12 @@ def write_dxf(path, walls, ops, rooms, sec, meta, a):
             msp.add_line(hinge, tip, dxfattribs={"layer": "PORTE"})
             base = math.degrees(math.atan2(vy, vx))
             msp.add_arc(hinge, w, base - 90 if True else base, base, dxfattribs={"layer": "PORTE"})
-        msp.add_text(f"{'F' if op['type']=='FINESTRA' else 'P'} {w*100:.0f}", height=0.12,
-                     dxfattribs={"layer": "TESTI"}).set_placement(P(0, -d / 2 - 0.25), align=TextEntityAlignment.MIDDLE_CENTER)
+        if getattr(a, "inner_dims", True):
+            msp.add_text(f"{'F' if op['type']=='FINESTRA' else 'P'} {w*100:.0f}", height=0.12,
+                         dxfattribs={"layer": "TESTI"}).set_placement(P(0, -d / 2 - 0.25), align=TextEntityAlignment.MIDDLE_CENTER)
 
-    # vani
+    # vani: solo nome e superficie (il contorno coincide con i muri e non viene disegnato)
     for i, r in enumerate(rooms, 1):
-        msp.add_lwpolyline(r["pts"].tolist(), close=True, dxfattribs={"layer": "VANI"})
         c = r["pts"].mean(0)
         msp.add_text(f"VANO {i}", height=0.20, dxfattribs={"layer": "TESTI"}).set_placement(
             (c[0], c[1] + 0.15), align=TextEntityAlignment.MIDDLE_CENTER)
@@ -1072,7 +1072,7 @@ def write_dxf(path, walls, ops, rooms, sec, meta, a):
     msp.add_linear_dim(base=(x0 - 0.8, 0), p1=(x0, y0), p2=(x0, y1), angle=90, dimstyle=st,
                        override=big, dxfattribs={"layer": "QUOTE"}).render()
     # quote dei vani (larghezza x profondità del rettangolo d'ingombro)
-    for r in rooms:   # luci nette interne del vano (rettangolo d'ingombro)
+    for r in (rooms if getattr(a, "inner_dims", True) else []):   # luci nette interne (rettangolo d'ingombro)
         rx0, ry0 = r["pts"].min(0); rx1, ry1 = r["pts"].max(0)
         yb, xb = ry0 + 0.45, rx0 + 0.45
         msp.add_linear_dim(base=(0, yb), p1=(rx0, yb), p2=(rx1, yb), dimstyle=st, override=small,
@@ -1131,8 +1131,9 @@ def write_pdf(path_pdf, path_png, walls, ops, rooms, meta, a, path_preview=None)
             ax.plot([hinge[0], tip[0]], [hinge[1], tip[1]], c="#2E2E2E", lw=0.7)
             base = math.degrees(math.atan2(vy, vx))
             ax.add_patch(Arc(hinge, 2 * w, 2 * w, theta1=base - 90, theta2=base, color="#5C5C5C", lw=0.5, ls="--"))
-        lp = P(0, -d / 2 - 0.25)
-        ax.text(*lp, f"{'F' if op['type']=='FINESTRA' else 'P'} {w*100:.0f}", fontsize=5, ha="center", va="center", color="#555")
+        if getattr(a, "inner_dims", True):
+            lp = P(0, -d / 2 - 0.25)
+            ax.text(*lp, f"{'F' if op['type']=='FINESTRA' else 'P'} {w*100:.0f}", fontsize=5, ha="center", va="center", color="#555")
 
     for i, r in enumerate(rooms, 1):
         c = r["pts"].mean(0)
@@ -1158,10 +1159,11 @@ def write_pdf(path_pdf, path_png, walls, ops, rooms, meta, a, path_preview=None)
     tb.text(0.02, 0.40, f"Pianta da nuvola di punti — piano di sezione h = {meta['cut']:.2f} m  —  scala 1:{S}  —  {paper}", fontsize=7, transform=tb.transAxes)
     tb.text(0.02, 0.12, f"Superficie utile vani: {sum(r['area'] for r in rooms):.2f} m²   ·   h netta {meta['ceil_z']-meta['floor_z']:.2f} m   ·   "
             f"rot. {meta['rotation_deg']:.2f}°   ·   *N di griglia", fontsize=6, transform=tb.transAxes)
-    fig.savefig(path_pdf); fig.savefig(path_png, dpi=200)
+    px300 = (W_mm / 25.4 * 300) * (H_mm / 25.4 * 300)       # 300 dpi, ridotti se la tavola è enorme (A1/A0)
+    fig.savefig(path_pdf); fig.savefig(path_png, dpi=int(300 * min(1.0, math.sqrt(70e6 / px300))))
     if path_preview:
         bb = ax.get_tightbbox(fig.canvas.get_renderer()).transformed(fig.dpi_scale_trans.inverted())
-        fig.savefig(path_preview, dpi=220, bbox_inches=bb.expanded(1.03, 1.03))
+        fig.savefig(path_preview, dpi=300, bbox_inches=bb.expanded(1.03, 1.03))
     plt.close(fig)
     return meta
 

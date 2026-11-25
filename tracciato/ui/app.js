@@ -76,6 +76,12 @@
     try {
       S.viewer = new window.TracciatoViewer($("gl"), $("ov"));
       if (S.viewer.failed) throw new Error("WebGL non disponibile");
+      // linee già disegnate: trascinate nella vista in pianta (estremi liberi, tratto in ortogonale)
+      S.viewer.onEdit = (l, final) => {
+        const row = document.querySelector(`.line-row[data-id="${l.id}"] .lmeta`);
+        if (row) row.textContent = `${l.kind === "sezione" ? "Sezione" : "Prospetto"} · ${fmtNum(lineLen(l))} m`;
+        if (final) { renderLines(); updateViewer(); }
+      };
     } catch (e) {
       S.viewer = null;
       $("vHint").textContent = "Anteprima 3D non disponibile su questo PC (WebGL): puoi comunque scegliere tipo e parametri.";
@@ -92,7 +98,7 @@
   }
   function hintDefault() {
     const m = S.viewer ? S.viewer.mode : "3d";
-    $("vHint").textContent = m === "top" ? "Pianta · trascina per spostare · Alt+trascina per ruotare · rotella per lo zoom"
+    $("vHint").textContent = m === "top" ? "Pianta · trascina per spostare · Alt+trascina per ruotare · rotella per lo zoom · trascina una linea per spostarla, un estremo per modificarla"
       : m === "side" ? "Laterale · trascina per girare attorno · tasto destro per spostare · le linee sono le quote"
       : "Trascina per ruotare · tasto destro o Maiusc per spostare · rotella per lo zoom";
   }
@@ -331,6 +337,9 @@
           <button type="button" class="icon-btn" data-act="flip" title="Inverti il verso di vista" aria-label="Inverti verso">⇄</button>
           <button type="button" class="icon-btn" data-act="del" title="Elimina" aria-label="Elimina">×</button>
           <div class="lparams">
+            <span class="mini-f">sposta
+              <button type="button" class="icon-btn" data-act="nudge-" title="Sposta di 10 cm all'indietro (ortogonale alla linea, contro la freccia di vista)" aria-label="Sposta indietro">↓</button>
+              <button type="button" class="icon-btn" data-act="nudge+" title="Sposta di 10 cm in avanti (ortogonale alla linea, verso la freccia di vista)" aria-label="Sposta avanti">↑</button></span>
             <label class="mini-f">${kind === "sezione" ? "spessore m" : "profondità m"}
               <input class="input mono" data-k="t" type="number" step="${kind === "sezione" ? 0.01 : 0.5}" value="${l.t}"></label>
             ${kind === "sezione" ? `<label class="mini-f">oltre m
@@ -354,6 +363,12 @@
       const b = e.target.closest("[data-act]"); if (!b) return;
       const l = lineOf(e); if (!l) return;
       if (b.dataset.act === "flip") { const t = l.p1; l.p1 = l.p2; l.p2 = t; }
+      else if (b.dataset.act.startsWith("nudge")) {
+        // 10 cm in ortogonale alla linea: + = verso la freccia di vista (normale sinistra p1→p2)
+        const L = lineLen(l) || 1, k = (b.dataset.act === "nudge+" ? 0.1 : -0.1) / L;
+        const nx = -(l.p2[1] - l.p1[1]) * k, ny = (l.p2[0] - l.p1[0]) * k;
+        l.p1 = [l.p1[0] + nx, l.p1[1] + ny]; l.p2 = [l.p2[0] + nx, l.p2[1] + ny];
+      }
       else S.lines = S.lines.filter((x) => x !== l);
       renderLines(); updateViewer();
     });
@@ -391,7 +406,7 @@
     const n = (id) => ($(id).value === "" ? null : +$(id).value);
     return {
       cut: +$("pCut").value, scale: Math.min(S.scale, 200), detail: $("pDetail").value, title: $("pTitle").value.trim(),
-      align: $("pAlign").checked, section_points: $("pSection").checked,
+      align: $("pAlign").checked, section_points: $("pSection").checked, inner_dims: $("pInnerDims").checked,
       max_wall: +$("pWall").value || 0.55, min_room: +$("pRoom").value || 1, high_band: +$("pBand").value || 0.35,
       floor_z: n("pFloor"), ceil_z: n("pCeil"),
     };
@@ -399,7 +414,7 @@
   function applyPlanParams(p) {
     if (!p) return;
     $("pCut").value = p.cut ?? 1.1; $("vCut").textContent = `${fmtNum($("pCut").value)} m`;
-    $("pAlign").checked = p.align ?? true; $("pSection").checked = p.section_points ?? true;
+    $("pAlign").checked = p.align ?? true; $("pSection").checked = p.section_points ?? true; $("pInnerDims").checked = p.inner_dims ?? true;
     $("pWall").value = p.max_wall ?? 0.55; $("pRoom").value = p.min_room ?? 1; $("pBand").value = p.high_band ?? 0.35;
     $("pFloor").value = p.floor_z ?? ""; $("pCeil").value = p.ceil_z ?? "";
   }

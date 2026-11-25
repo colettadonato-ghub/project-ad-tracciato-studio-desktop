@@ -9,6 +9,10 @@
  *   viewer.setLines([{p1, p2, kind, t, beyond, label, active}])   linee di sezione/prospetto (assolute)
  *   viewer.setLevels([{z, label}])               linee di quota (vista laterale)
  *   viewer.startDraw(cb)                         due clic → cb(p1, p2) in coordinate assolute
+ *   viewer.onEdit = (line, final) => {}          linee già disegnate, in pianta: trascina un estremo per
+ *                                                modificarlo, trascina il tratto per spostarla in
+ *                                                ortogonale (solo lungo la normale); p1/p2 vengono
+ *                                                aggiornati sull'oggetto, `final` = rilascio del mouse
  */
 (() => {
   const VS = `
@@ -248,12 +252,21 @@
       cv.addEventListener("contextmenu", (e) => e.preventDefault());
       cv.addEventListener("pointerdown", (e) => {
         if (this.draw && e.button === 0) return;   // in disegno il clic sinistro piazza i punti
+        if (e.button === 0 && !e.altKey) {
+          const r = cv.getBoundingClientRect(), h = this._hit(e.clientX - r.left, e.clientY - r.top);
+          if (h) { cv.setPointerCapture(e.pointerId); this._editStart(h, e.clientX - r.left, e.clientY - r.top); return; }
+        }
         cv.setPointerCapture(e.pointerId);
         drag = { x: e.clientX, y: e.clientY, b: e.button, shift: e.shiftKey };
       });
       cv.addEventListener("pointermove", (e) => {
         const r = cv.getBoundingClientRect();
         if (this.draw) { this._drawMove(e.clientX - r.left, e.clientY - r.top, e.shiftKey); }
+        if (this.edit) { this._editMove(e.clientX - r.left, e.clientY - r.top, e.shiftKey); return; }
+        if (!drag && !this.draw) {
+          const h = this._hit(e.clientX - r.left, e.clientY - r.top);
+          cv.style.cursor = h ? (h.part === "body" ? "move" : "crosshair") : "";
+        }
         if (!drag) return;
         const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
         drag.x = e.clientX; drag.y = e.clientY;
@@ -265,7 +278,10 @@
         }
         this.render();
       });
-      const end = () => (drag = null);
+      const end = () => {
+        drag = null;
+        if (this.edit) { const l = this.edit.line; this.edit = null; this.onEdit && this.onEdit(l, true); this.render(); }
+      };
       cv.addEventListener("pointerup", end); cv.addEventListener("pointercancel", end);
       cv.addEventListener("wheel", (e) => {
         e.preventDefault();
@@ -303,6 +319,58 @@
       const cp = Math.cos(c.pitch), sp = Math.sin(c.pitch);
       const up = [f[0] * sp, f[1] * sp, cp];
       for (let i = 0; i < 3; i++) c.t[i] += (-dx * right[i] + dy * up[i]) * s;
+    }
+
+    // -------------------------------------------------------------- modifica linee esistenti
+    _editZ() { return this.levelZ ?? 0; }
+    _hit(px, py) {
+      if (this.mode !== "top" || this.draw || !this.bbox) return null;
+      const z = this._editZ();
+      let best = null;
+      for (let i = this.lines.length - 1; i >= 0; i--) {
+        const l = this.lines[i];
+        if (l.active === false || l.locked) continue;
+        const a = this.project(this.toLocal([l.p1[0], l.p1[1], 0]).slice(0, 2).concat(z));
+        const b = this.project(this.toLocal([l.p2[0], l.p2[1], 0]).slice(0, 2).concat(z));
+        if (!a || !b) continue;
+        const da = Math.hypot(px - a[0], py - a[1]), db = Math.hypot(px - b[0], py - b[1]);
+        if (da <= 10 && (!best || da < best.d)) best = { line: l, part: "p1", d: da };
+        if (db <= 10 && (!best || db < best.d)) best = { line: l, part: "p2", d: db };
+        if (best) continue;
+        const vx = b[0] - a[0], vy = b[1] - a[1], L2 = vx * vx + vy * vy || 1;
+        const t = Math.max(0, Math.min(1, ((px - a[0]) * vx + (py - a[1]) * vy) / L2));
+        const d = Math.hypot(px - (a[0] + vx * t), py - (a[1] + vy * t));
+        if (d <= 7) best = { line: l, part: "body", d: 100 + d };
+      }
+      return best;
+    }
+    _editStart(h, px, py) {
+      const l = h.line, z = this._editZ();
+      const p = this.unprojectToZ(px, py, z);
+      const o1 = this.toLocal([l.p1[0], l.p1[1], 0]), o2 = this.toLocal([l.p2[0], l.p2[1], 0]);
+      const L = Math.hypot(o2[0] - o1[0], o2[1] - o1[1]) || 1e-6;
+      this.edit = { line: l, part: h.part, p0: p, o1, o2, n: [-(o2[1] - o1[1]) / L, (o2[0] - o1[0]) / L], z };
+      this.render();
+    }
+    _editMove(px, py, shift) {
+      const e = this.edit, p = this.unprojectToZ(px, py, e.z);
+      if (!p || !e.p0) return;
+      const l = e.line;
+      if (e.part === "body") {
+        // spostamento ortogonale: solo la componente lungo la normale della linea
+        const d = (p[0] - e.p0[0]) * e.n[0] + (p[1] - e.p0[1]) * e.n[1];
+        const a = this.toAbs([e.o1[0] + e.n[0] * d, e.o1[1] + e.n[1] * d, 0]);
+        const b = this.toAbs([e.o2[0] + e.n[0] * d, e.o2[1] + e.n[1] * d, 0]);
+        l.p1 = [a[0], a[1]]; l.p2 = [b[0], b[1]];
+      } else {
+        const other = e.part === "p1" ? e.o2 : e.o1;
+        const q = this._snap(other, p, shift);
+        if (Math.hypot(q[0] - other[0], q[1] - other[1]) < 0.3) return;   // lunghezza minima 30 cm
+        const a = this.toAbs([q[0], q[1], 0]);
+        l[e.part] = [a[0], a[1]];
+      }
+      this.onEdit && this.onEdit(l, false);
+      this.render();
     }
 
     // -------------------------------------------------------------- disegno linea
@@ -448,6 +516,10 @@
           g.lineTo(t[0] - 9 * Math.cos(ang + 0.4), t[1] - 9 * Math.sin(ang + 0.4)); g.closePath(); g.fillStyle = col; g.fill();
         };
         arrow(a, 0); arrow(b, f.L);
+        if (on && this.mode === "top" && !this.draw) {            // maniglie degli estremi (trascinabili)
+          g.setLineDash([]); g.fillStyle = "#fff"; g.lineWidth = 1.5;
+          for (const q of [a, b]) { g.fillRect(q[0] - 4, q[1] - 4, 8, 8); g.strokeRect(q[0] - 4, q[1] - 4, 8, 8); }
+        }
         g.font = "600 13px Inter, 'Segoe UI', sans-serif";
         const lab = (q, s) => { const t = P(s, -0.7); if (t) { g.fillStyle = col; g.fillText(l.label, t[0] - 4, t[1] + 4); } };
         lab(a, 0); lab(b, f.L);

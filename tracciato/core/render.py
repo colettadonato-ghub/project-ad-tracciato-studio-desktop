@@ -20,7 +20,14 @@ LINEA = "#E4E2DD"
 CARTA = "#FFFFFF"
 INFO = "#1F4FA3"
 PAPERS = [("A3", 420, 297), ("A2", 594, 420), ("A1", 841, 594), ("A0", 1189, 841)]
-DPI = {"A3": 220, "A2": 200, "A1": 160, "A0": 130}
+DPI = 300            # risoluzione di stampa dei PNG
+MAX_PNG_PIXELS = 70_000_000   # tetto: oltre, il dpi scende per non esaurire la memoria (A1/A0)
+
+
+def png_dpi(w_mm, h_mm, dpi=DPI, max_px=MAX_PNG_PIXELS):
+    """DPI del PNG: `dpi`, ridotto solo se la tavola supererebbe `max_px` pixel."""
+    px = (w_mm / 25.4 * dpi) * (h_mm / 25.4 * dpi)
+    return int(dpi * math.sqrt(max_px / px)) if px > max_px else dpi
 
 
 def _paper(dw, dh):
@@ -58,7 +65,7 @@ def sheet(path_png, img, extent, scale, title, subtitle, info, draw=None, margin
         log.warning(f"L'elaborato non entra in A0 a 1:{S}: la tavola viene ridotta. Scegli una scala più piccola.")
         k = min((W_mm - 24) / dw, (H_mm - 70) / dh)
         dw, dh = dw * k, dh * k
-    dpi = DPI[paper]
+    dpi = png_dpi(W_mm, H_mm)
 
     # il raster può essere più fitto dei pixel della tavola: tengo i punti scuri (min) prima di ridurre
     out_px_per_m = dw / (x1 - x0 + 2 * margin) * dpi / 25.4
@@ -78,7 +85,7 @@ def sheet(path_png, img, extent, scale, title, subtitle, info, draw=None, margin
     ax.axis("off")
     cmap = "gray" if img.ndim == 2 else None
     ax.imshow(img, extent=(x0, x1, y0, y1), origin="lower", cmap=cmap, vmin=0, vmax=1,
-              interpolation="antialiased", zorder=1)
+              interpolation="antialiased", interpolation_stage="rgba", zorder=1)
     if draw:
         draw(ax)
 
