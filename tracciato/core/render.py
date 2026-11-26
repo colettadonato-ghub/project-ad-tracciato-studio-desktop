@@ -173,10 +173,29 @@ def mask_polygons(mask, ext, up=2, window=5, eps=0.3, min_px=4):
     return out
 
 
-def fill_mask(ax, mask, ext, color="#000000", zorder=3, **kw):
-    """Riempie in vettoriale (bordi nitidi) i pixel attivi di `mask` sull'asse `ax`."""
+def thicken(mask, res, min_w):
+    """Porta a uno spessore minimo `min_w` (m) le parti sottili della maschera (facce di muro viste di taglio,
+    linee di un pixel), senza ingrossare quelle già spesse; chiude i piccoli buchi tra punti vicini."""
+    import cv2
+    m = (np.asarray(mask) > 0).astype(np.uint8)
+    if not m.any():
+        return m
+    m = cv2.morphologyEx(m, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3)))
+    k = max(int(round(min_w / res)) | 1, 3)
+    se = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (k, k))
+    thick = cv2.morphologyEx(m, cv2.MORPH_OPEN, se)               # parti già abbastanza spesse
+    thin = cv2.subtract(m, thick)
+    return cv2.bitwise_or(thick, cv2.dilate(thin, se))
+
+
+def fill_mask(ax, mask, ext, color="#000000", zorder=3, res=None, min_w=0.0, **kw):
+    """Riempie in vettoriale (bordi nitidi) i pixel attivi di `mask` sull'asse `ax`.
+    Con `res` e `min_w` (m) le parti sottili vengono portate a uno spessore minimo visibile."""
     from matplotlib.patches import PathPatch
     from matplotlib.path import Path as MPath
+    if res and min_w:
+        mask = thicken(mask, res, min_w)
+        kw.setdefault("min_px", max(4, int(0.004 / res ** 2)))       # via i granelli isolati (< ~40 cm²)
     polys = mask_polygons(mask, ext, **kw)
     if not polys:
         return
@@ -184,7 +203,7 @@ def fill_mask(ax, mask, ext, color="#000000", zorder=3, **kw):
     for p in polys:
         verts += p.tolist() + [p[0].tolist()]
         codes += [MPath.MOVETO] + [MPath.LINETO] * (len(p) - 1) + [MPath.CLOSEPOLY]
-    ax.add_patch(PathPatch(MPath(verts, codes), facecolor=color, edgecolor=color, lw=0.15, zorder=zorder))
+    ax.add_patch(PathPatch(MPath(verts, codes), facecolor=color, edgecolor="none", lw=0, zorder=zorder))
 
 
 # ------------------------------------------------------------------ annotazioni ricorrenti

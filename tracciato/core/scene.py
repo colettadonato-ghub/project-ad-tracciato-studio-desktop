@@ -124,6 +124,7 @@ class SceneParams:
     fill_walls: bool = True             # campitura degli elementi tagliati
     cut_h: float = 1.00                 # esterno: quota della sezione orizzontale per il perimetro
     cut_t: float = 0.30
+    roi: list | None = None             # area di lavoro [xmin, ymin, xmax, ymax] (file): solo lì si rasterizza
     levels: list = field(default_factory=list)
     lines: list = field(default_factory=list)
     level_marks: list = field(default_factory=list)   # quote da segnare in sezione (interno)
@@ -140,6 +141,7 @@ class SceneParams:
             raise ValueError("Scala non valida")
         if p.detail not in DETAIL_RES:
             p.detail = "alta"
+        p.roi = [float(v) for v in p.roi[:4]] if p.roi and len(p.roi) >= 4 else None
         p.z0 = None if p.z0 in ("", None) else float(p.z0)
         p.angle = float(p.angle or 0)
         p.cut_h, p.cut_t = float(p.cut_h), float(p.cut_t)
@@ -255,6 +257,14 @@ class Job:
         corners = np.array([[b[0], b[1]], [b[3], b[1]], [b[3], b[4]], [b[0], b[4]]])
         pc = self.to_plan(corners)
         self.plan_box = (*(pc.min(0) - 0.5), *(pc.max(0) + 0.5))
+        if p.roi:            # area di lavoro: la griglia copre solo quella (più dettaglio a parità di memoria)
+            r = p.roi
+            rc = self.to_plan([[r[0], r[1]], [r[2], r[1]], [r[2], r[3]], [r[0], r[3]]])
+            x0, y0, x1, y1 = (*rc.min(0), *rc.max(0))
+            b = self.plan_box
+            self.plan_box = (max(x0, b[0]), max(y0, b[1]), min(x1, b[2]), min(y1, b[3]))
+            if self.plan_box[2] - self.plan_box[0] < 1 or self.plan_box[3] - self.plan_box[1] < 1:
+                self.plan_box = b                    # area fuori dalla nuvola: la ignoro
 
     def to_plan(self, xy):
         return (np.asarray(xy, float) - self.c) @ self.R.T
@@ -331,15 +341,20 @@ class Job:
                 add_min(s["depth"], idx, dv)
 
     # -------------------------------------------------------------- elaborati
+    def _line_w(self):
+        """Spessore minimo (m) delle linee tagliate: ~0,4 mm di carta (2 cm al minimo, anche a 1:1)."""
+        return max(0.02, 0.0004 * self.p.scale)
+
     def _file(self, suffix):
         return str(self.base) + suffix
 
     def footprint(self):
         p, r = self.p, self.plan
         res = r.res
-        has = np.isfinite(self.fp_max) & (clean(np.isfinite(self.fp_max).astype(np.uint8), 8) > 0)
+        mp = max(8, int(0.01 / res ** 2))                       # via i granelli isolati (< ~100 cm²), qualunque sia il pixel
+        has = np.isfinite(self.fp_max) & (clean(np.isfinite(self.fp_max).astype(np.uint8), mp) > 0)
         top = np.where(has, -self.fp_max, 0.0)
-        cut = clean((self.fp_cut > 0).astype(np.uint8))
+        cut = clean((self.fp_cut > 0).astype(np.uint8), mp)
         high = cv2.dilate((self.fp_high > 0).astype(np.uint8), np.ones((5, 5), np.uint8))
         facade = cut & high                                # solo ciò che sale in verticale (niente terreno)
         if facade.sum() < 0.2 * max(cut.sum(), 1):
@@ -377,9 +392,10 @@ class Job:
             if p.align:
                 P = engine.snap_poly(P)
             from shapely.geometry import Polygon
-            pg = Polygon(P)
-            if pg.is_valid and pg.area > 1:
-                poly, area = P, float(pg.area)
+            if len(P) >= 3:                      # meno di 3 vertici: nessun perimetro attendibile
+                pg = Polygon(P)
+                if pg.is_valid and pg.area > 1:
+                    poly, area = P, float(pg.area)
         # altezza dell'edificio: quota massima dentro la sagoma (99,5° percentile)
         H = None
         if solid is not None:
@@ -411,7 +427,7 @@ class Job:
             info["height"] = round(H, 2)
 
         def draw(ax):
-            render.fill_mask(ax, facade_c, ext)             # facciate tagliate: vettoriale, bordi nitidi
+            render.fill_mask(ax, facade_c, ext, res=res, min_w=self._line_w())   # facciate tagliate: vettoriale
             if poly is not None:
                 cx, cy = poly.mean(0)              # niente linea di sagoma nel disegno: solo nome, superficie, altezza
                 ax.text(cx, cy + 0.2, "SAGOMA", fontsize=7, weight="bold", ha="center", zorder=6)
@@ -479,7 +495,7 @@ class Job:
                 log.warning(f"{lv.name}: quasi nessun punto alla quota di sezione (+{lv.z + lv.cut:.2f})")
 
             def draw(ax, cut_c=cut_c):
-                render.fill_mask(ax, cut_c, ext)           # muri tagliati: vettoriale, bordi nitidi
+                render.fill_mask(ax, cut_c, ext, res=res, min_w=self._line_w())   # muri tagliati: vettoriale
                 self._marks(ax)
                 render.north(ax, ext[1] + 0.6, ext[3] - 1.4)
 
@@ -533,7 +549,7 @@ class Job:
 
             def draw(ax, ext=ext, marks=marks, cut_c=cut_c):
                 if cut_c is not None:
-                    render.fill_mask(ax, cut_c, ext)       # parti tagliate: vettoriale, bordi nitidi     # nessuna linea di quota né di livello: solo il disegno
+                    render.fill_mask(ax, cut_c, ext, res=res, min_w=self._line_w())   # parti tagliate: vettoriale     # nessuna linea di quota né di livello: solo il disegno
 
             kind = "sezione" if ln.kind == "sezione" else "prospetto"
             png = self._file(f"_{kind}-{_slug(ln.label)}.png")

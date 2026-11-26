@@ -527,6 +527,13 @@
     $("pWall").value = p.max_wall ?? 0.55; $("pRoom").value = p.min_room ?? 1; $("pBand").value = p.high_band ?? 0.35;
     $("pFloor").value = p.floor_z ?? ""; $("pCeil").value = p.ceil_z ?? "";
   }
+  // area di lavoro: riquadro (assi del file) che contiene le linee dei prospetti, con un margine in metri
+  function roiOfLines(lines, margin) {
+    const pts = lines.filter((l) => l.kind === "prospetto").flatMap((l) => [l.p1, l.p2]);
+    if (pts.length < 2) return null;
+    const xs = pts.map((p) => p[0]), ys = pts.map((p) => p[1]);
+    return [Math.min(...xs) - margin, Math.min(...ys) - margin, Math.max(...xs) + margin, Math.max(...ys) + margin];
+  }
   function buildParams() {
     const m = S.mode;
     const lines = S.lines.filter((l) => l.active && (l.kind === "sezione" || m === "esterno"))
@@ -536,6 +543,7 @@
       z0: S.z0, bbox: S.prev.bbox, angle: S.prev.angle || 0, align: m === "interno" ? $("pAlign").checked : true,
       fill_walls: $("pFill").checked, cut_h: num($("pCutH").value, 1), cut_t: num($("pCutT").value, 0.3),
       levels: m === "multipiano" ? S.levels.map((l) => ({ ...l })) : [], lines,
+      roi: m === "esterno" && $("pRoi").checked ? roiOfLines(lines, 6) : null,
     };
     return { scene, plan: m === "interno" ? readPlanParams() : null };
   }

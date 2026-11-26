@@ -44,6 +44,9 @@ def auto_scene_params(prev: dict, mode: str) -> dict:
     sp = {"z0": sug["z0"], "bbox": prev["bbox"], "angle": prev["angle"], "title": "RILIEVO"}
     if mode == "esterno":
         sp["lines"] = list(g.get("fronts", []))
+        pts = [q for ln in sp["lines"] for q in (ln["p1"], ln["p2"])]
+        if len(pts) >= 2:            # area di lavoro = riquadro dei prospetti + 6 m (più dettaglio a parità di memoria)
+            sp["roi"] = [min(q[0] for q in pts) - 6, min(q[1] for q in pts) - 6, max(q[0] for q in pts) + 6, max(q[1] for q in pts) + 6]
     elif mode == "multipiano":
         names = ["Piano terra"] + [f"Livello {i}" for i in range(1, 10)]
         sp["levels"] = [{"name": names[i], "z": z} for i, z in enumerate(sug["levels"])]
